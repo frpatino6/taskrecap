@@ -4,6 +4,8 @@
 
 You work on several repos, each with many tasks. Weeks later you need to know *what was done in that task, what was decided and why, and what is still pending*, and the answer is scattered across dozens of Claude conversations. taskrecap reads your local sessions, groups them by task, and writes a **capsule**: objective, timeline, decisions with their reasons, files and commits, dead ends, what was left out, what is pending, and a briefing you can paste into a fresh Claude session to pick the task up again.
 
+![taskrecap demo: search inside saved capsules, open a task, click a citation to read the original message, copy the command to resume that conversation (fictional demo data)](docs/demo.gif)
+
 ![Every claim in a capsule links to the original message behind it: click a citation to verify it, or copy the command to resume that exact conversation (fictional demo data)](docs/screenshots/04-evidence-panel-light.png)
 
 <table>
