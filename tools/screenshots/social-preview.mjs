@@ -32,6 +32,7 @@ try {
   // 1. A crop of the real UI (evidence panel, dark, demo data)
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2, colorScheme: 'dark', locale: 'en-US' });
   const page = await ctx.newPage();
+  await page.addInitScript(() => { try { localStorage.setItem('tr-view', 'cards'); } catch (e) { /* ignore */ } }); // the home now opens on the timeline
   await page.goto(base);
   await page.waitForSelector('.card');
   await page.locator(`.card[data-key="${TASK}"]`).click();

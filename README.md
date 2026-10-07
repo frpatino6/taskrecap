@@ -55,6 +55,14 @@ Existing tools (history viewers, session browsers, search UIs) treat a session a
 | You reread the conversation | Decisions and the *why*, each one citing the session turn it came from |
 | Resume the old, heavy chat | Resume with a clean briefing in a **new** session |
 
+## The timeline: where did the work go?
+
+The home page opens on a **timeline**, free and local: one row per task, one dot per day with prompts in its sessions, coloured by repo. A bigger dot means more prompts, and a dot opens the task. A task spread over several days and sessions, or two tasks worked in the same session, show up at a glance. Filter by repo and date, or switch to the cards view (your choice is remembered).
+
+![The home timeline: one row per task across three repos, dots on the days with prompts](docs/screenshots/timeline-dark.png)
+
+The thin dotted line only joins a task's first and last day, it is not time worked. Dates are approximate: a session that mixes several tasks counts for every task its prompts cite. The header also shows how many tasks have a capsule; click it to list the ones that don't.
+
 ## Two modes: free and AI
 
 The dashboard keeps what is free apart from what uses tokens, and always tells you which is which.
@@ -62,7 +70,7 @@ The dashboard keeps what is free apart from what uses tokens, and always tells y
 | | Normal mode | ✨ AI mode ("Improve with AI") |
 |---|---|---|
 | Cost | **Free, 100% local** | Uses tokens from your own Claude login |
-| Browse tasks, open saved capsules, copy a briefing | ✅ | |
+| Browse tasks, see them on the timeline, open saved capsules, copy a briefing | ✅ | |
 | Search | **Literal**: every word you type must appear in a task name, repo, first prompt or saved capsule text | **By meaning**: "payment retry" can find a task about "checkout resubmit" |
 | Write a capsule | | ✅ "Generate capsule" |
 
@@ -122,7 +130,7 @@ Environment: `TASKRECAP_HOME`, `TASKRECAP_PROJECTS_DIR`, `TASKRECAP_KEY_REGEX`, 
 - Optional connectors that add title and status to a task: Jira, GitHub Issues, Linear.
 - Read git history to confirm commits and reverts.
 - Task detection that needs no key at all (topic clustering across sessions).
-- Cross-task views: timeline of activity, files shared between tasks.
+- More cross-task views (files shared between tasks already work; richer relations next).
 - Packaged as a Claude Code plugin as well.
 
 ## Development

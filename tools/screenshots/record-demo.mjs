@@ -63,6 +63,8 @@ const ctx = await browser.newContext({
 await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(base).origin });
 const page = await ctx.newPage();
 await page.addInitScript(CURSOR);
+// this recording starts from the cards view (the home now opens on the timeline)
+await page.addInitScript(() => { try { localStorage.setItem('tr-view', 'cards'); } catch (e) { /* ignore */ } });
 
 let mx = W - 90, my = 160; // start parked in a neutral corner
 const pause = (ms) => page.waitForTimeout(ms);

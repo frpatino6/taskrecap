@@ -8,6 +8,7 @@ import { renderMarkdown } from '../src/capsule.js';
 import { DEFAULT_KEY_REGEX } from '../src/config.js';
 import { parseSources, readEvidence, resolveSession } from '../src/evidence.js';
 import { SessionIndex } from '../src/tasks.js';
+import { buildTimeline, dayNumber } from '../src/timeline.js';
 import { tmpDir } from './helpers.js';
 
 const CAPSULES = path.join(DEMO_DIR, 'capsules');
@@ -119,7 +120,28 @@ test('an upgraded demo cache gets the new samples without losing a capsule the u
 });
 
 test('the demo sessions are fictional: no real paths, emails or secrets', () => {
-  const blob = fs.readdirSync(path.join(SESSIONS, 'acme-shop')).map((n) => fs.readFileSync(path.join(SESSIONS, 'acme-shop', n), 'utf8')).join('\n')
+  const blob = index.listFiles().map((f) => fs.readFileSync(f, 'utf8')).join('\n')
     + jsonNames.map((n) => fs.readFileSync(path.join(CAPSULES, n), 'utf8')).join('\n');
   assert.ok(!/\/Users\/|\/home\/(?!demo\/)|@[a-z0-9-]+\.(com|org|net|io)\b|sk-[A-Za-z0-9]{16,}|ghp_|AKIA/i.test(blob));
+});
+
+test('the demo draws a believable timeline: 3 repos, about 4 weeks, a task over several days and sessions, an interleaved pair', () => {
+  const cacheDir = tmpDir();
+  seedDemoCache(CAPSULES, cacheDir);
+  const app = new App({ projectsDir: SESSIONS, cacheDir, demo: true });
+  const tl = buildTimeline(app.listTasks({ activity: true }), { limit: 'all' });
+  assert.deepEqual(tl.all_repos, ['acme-api', 'acme-docs', 'acme-shop']);
+  assert.ok(tl.range.days >= 24, `the demo should span about 4 weeks, spans ${tl.range.days} days`);
+  assert.ok(tl.total >= 12, 'more tasks than the default limit, so "show more" has something to show');
+  const lane = (key) => tl.lanes.find((l) => l.key === key);
+  const spread = lane('API-212');
+  assert.ok(spread.marks.length >= 3 && dayNumber(spread.last) - dayNumber(spread.first) >= 5, 'API-212 is spread over days');
+  assert.ok(index.taskSessions('API-212').length >= 3, 'API-212 spans several sessions');
+  // API-214 and API-216 share one session: both are drawn on the same day
+  const a = lane('API-214');
+  const b = lane('API-216');
+  assert.ok(a.marks.some((m) => b.marks.some((n) => n.day === m.day)), 'the interleaved pair overlaps on a day');
+  assert.ok(lane('unassigned'), 'unassigned stays visible');
+  assert.deepEqual(tl.coverage, { ready: 6, total: 13 });
+  assert.ok(tl.repos.every((r) => r.slot >= 0), 'three repos fit the three validated colours');
 });

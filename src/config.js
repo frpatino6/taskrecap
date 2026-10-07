@@ -6,7 +6,7 @@ import { expandUser } from './util.js';
 
 export const APP_NAME = 'taskrecap'; // the product name lives here and in package.json only
 export const APP_TITLE = 'taskrecap';
-export const VERSION = '0.1.0';
+export const VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version; // one source of truth: it was hard-coded and went stale at 0.1.1
 
 export const DEFAULT_KEY_REGEX = String.raw`\b[A-Z][A-Z0-9]{1,9}-\d{1,6}\b`; // Jira-style by default; any regex works
 

@@ -123,6 +123,20 @@ async function streamAction(res, run) {
   }
 }
 
+/** Query string of /api/timeline -> options of buildTimeline (anything malformed is simply ignored). */
+export function timelineOptions(q) {
+  const opts = {};
+  if (q.get('repo')) opts.repo = q.get('repo');
+  if (q.get('from')) opts.from = q.get('from');
+  if (q.get('to')) opts.to = q.get('to');
+  if (q.get('capsule') === 'none' || q.get('capsule') === 'ready') opts.capsule = q.get('capsule');
+  if (q.has('keys')) opts.keys = q.get('keys').split('\n').filter(Boolean);
+  const limit = q.get('limit');
+  if (limit === 'all') opts.limit = 'all';
+  else if (/^\d{1,4}$/.test(limit || '') && Number(limit) > 0) opts.limit = Number(limit);
+  return opts;
+}
+
 export function makeHandler(app) {
   return async (req, res) => {
     try {
@@ -144,6 +158,7 @@ async function handleGet(app, url, route, res) {
   if (route === '/api/strings') return send(res, 200, app.strings);
   if (route === '/api/usage') return send(res, 200, app.usageSnapshot());
   if (route === '/api/tasks') return send(res, 200, { tasks: app.listTasks() });
+  if (route === '/api/timeline') return send(res, 200, app.timeline(timelineOptions(url.searchParams)));
   const m = route.match(/^\/api\/tasks\/(.+)$/);
   if (m) {
     const detail = app.taskDetail(decodeURIComponent(m[1]));
