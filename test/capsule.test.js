@@ -122,6 +122,14 @@ test('validateCapsule drops uncited items and invalid citations', () => {
   assert.deepEqual(clean.timeline[0].cites, []);
 });
 
+test('validateCapsule drops any ts the model wrote on a timeline row', () => {
+  const cap = { timeline: [{ date: '09-07', result: 'x', ts: '2020-01-01T00:00:00.000Z', cites: [{ session: 's', turn: 1 }] }] };
+  const [clean] = C.validateCapsule(cap, { s: [[0, 2]] });
+  assert.ok(!('ts' in clean.timeline[0]));
+  assert.equal(clean.timeline[0].date, '09-07');
+  assert.equal(clean.timeline[0].cites.length, 1, 'valid cites are kept');
+});
+
 test('renderMarkdown has every section', () => {
   const md = C.renderMarkdown('KK-1', { objective: 'o', briefing: 'b', decisions: [{ decision: 'd', why: 'w', cites: [{ session: 's', turn: 1 }] }] },
     [{ short: 'r/a.js', edits: 2, status: 'final' }], { confirmed: [], possible: [] }, ['`s`']);

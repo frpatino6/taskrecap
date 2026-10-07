@@ -139,10 +139,15 @@ export function citeTimestamp(cites, files) {
   return null;
 }
 
-/** A copy of `timeline` whose rows carry `ts` (ISO) when their first cited message is found. The stored capsule is not touched. */
+/**
+ * A copy of `timeline` whose rows carry `ts` (ISO) ONLY when their first cited message is found. Any `ts` already stored in the
+ * row (e.g. one the model invented) is dropped, so the UI can never show a time that was not read from a cited message.
+ * The stored capsule is not touched.
+ */
 export function withRowTimes(timeline, files) {
   return (timeline || []).map((row) => {
-    const ts = citeTimestamp(row && row.cites, files);
-    return ts ? { ...row, ts } : { ...row };
+    const { ts: _stored, ...rest } = row || {};
+    const ts = citeTimestamp(rest.cites, files);
+    return ts ? { ...rest, ts } : rest;
   });
 }
