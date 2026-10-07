@@ -167,6 +167,10 @@ async function handleGet(app, url, route, res) {
   if (route === '/api/search') return send(res, 200, { hits: app.search(url.searchParams.get('q') || ''), searched: app.searchCoverage() });
   if (route === '/api/files') return send(res, 200, app.findFiles(url.searchParams.get('q') || ''));
   if (route === '/api/files/tasks') return send(res, 200, app.fileTasks(url.searchParams.get('path') || ''));
+  if (route === '/api/messages') {
+    const q = url.searchParams;
+    return send(res, 200, app.sessionMessages({ key: q.get('key') || '', session: q.get('session'), scope: q.get('scope') || 'all', offset: q.get('offset'), limit: q.get('limit') }));
+  }
   if (route === '/api/evidence') {
     const q = url.searchParams;
     return send(res, 200, app.evidence({ session: q.get('session'), turn: q.get('turn'), context: q.has('context') ? q.get('context') : undefined, key: q.get('key') || '' }));

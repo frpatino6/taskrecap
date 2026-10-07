@@ -144,6 +144,33 @@ body.evopen { overflow: hidden; }
 @media (max-width: 560px) { .evpanel { border-left: none; padding: 16px; } }
 .sess { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14.5px; }
 .sess:last-child { border-bottom: none; }
+/* ---- sessions section: the user's own messages of a task (free, local) ---- */
+.sesstools { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 12px; }
+.sesslist { display: flex; flex-direction: column; gap: 10px; }
+.sessitem { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.sessrow { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; text-align: left; background: none; border: none; color: var(--text); padding: 12px 14px; border-radius: 12px; }
+.sessrow:hover { background: var(--surface-2); }
+.sessrow .chev { flex: none; width: 1em; color: var(--muted); transition: transform .15s; align-self: center; line-height: 1; }
+.sessrow[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.sessrow .when { font-size: 14px; color: var(--muted); }
+.msgs { border-top: 1px solid var(--border); padding: 8px 8px 12px; }
+.msgs .note { margin: 4px 6px 8px; }
+.msglist { display: flex; flex-direction: column; gap: 2px; }
+.msg { display: grid; grid-template-columns: 3.4em 12em 1fr; gap: 4px 10px; width: 100%; text-align: left; background: none; border: 1px solid transparent; border-left: 3px solid transparent; border-radius: 8px; padding: 6px 8px; color: var(--text); font-size: 14.5px; align-items: baseline; }
+.msg:hover, .msg:focus-visible { background: var(--accent-soft); border-color: var(--accent); }
+.msg .n { color: var(--muted); font: .8em ui-monospace, SFMono-Regular, Menlo, monospace; }
+.msg .w { color: var(--muted); font-size: 12.5px; }
+.msg .w .chip { font-size: 11px; padding: 1px 7px; margin-left: 4px; }
+.msg .x { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.msgs.marking .msg.mine { border-left-color: var(--accent); background: var(--accent-soft); } /* highlighted only where the session mixes tasks */
+.msgs.marking .msg:not(.mine) { opacity: .62; }
+.msgmore { margin: 8px 6px 0; }
+.stale { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; background: var(--warn-soft); border: 1px solid var(--warn); border-radius: 12px; padding: 10px 14px; margin: 0 0 20px; }
+.stale .chip.warn { background: var(--surface); border: 1px solid var(--warn); }
+.stale .hint { flex-basis: 100%; font-size: 13px; color: var(--muted); }
+.linkbtn { background: none; border: none; color: var(--accent); font-weight: 600; padding: 4px 2px; text-decoration: underline; }
+.vz-key i.vz-stale { color: var(--warn); margin-left: 4px; }
+@media (max-width: 560px) { .msg { grid-template-columns: 2.8em 1fr; } .msg .w { grid-column: 2; } .msg .x { grid-column: 1 / -1; } }
 table.tl2 { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 table.tl2 th, table.tl2 td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 table.tl2 th { color: var(--muted); font-weight: 600; font-size: 13px; }
@@ -440,7 +467,8 @@ function card(t, extra) {
   const dates = t.first_ts ? day(t.first_ts) + (day(t.last_ts) !== day(t.first_ts) ? " – " + day(t.last_ts) : "") : "";
   const chips = t.projects.slice(0, 3).map((p) => `<span class="chip repo">${esc(p)}</span>`).join("") +
     `<span class="chip">${esc(sess)}</span>` + (dates ? `<span class="chip">${esc(dates)}</span>` : "") +
-    (t.generatable ? (t.has_capsule ? `<span class="chip done">${esc(S.chip_capsule)}</span>` : `<span class="chip warn">${esc(S.chip_no_capsule)}</span>`) : "");
+    (t.generatable ? (t.has_capsule ? `<span class="chip done">${esc(S.chip_capsule)}</span>` : `<span class="chip warn">${esc(S.chip_no_capsule)}</span>`) : "") +
+    (t.has_capsule && t.outdated ? `<span class="chip warn" title="${esc(fmt(S.stale_tip, { n: t.new_messages }))}">${esc(fmt(S.stale_chip, { n: t.new_messages }))}</span>` : "");
   return `<button class="card" role="listitem" data-key="${esc(t.key)}" type="button">
     <span class="t">${esc(kindLabel(t.kind))}</span>
     <span class="k">${esc(t.key)}</span>
@@ -498,7 +526,8 @@ function renderCoverage() {
   if (!gen.length) return;
   const C = 2 * Math.PI * 10.5;
   $("cv-fg").setAttribute("stroke-dasharray", (C * ready / gen.length).toFixed(1) + " " + C.toFixed(1));
-  $("coverage-text").textContent = fmt(S.coverage_text, { ready, total: gen.length });
+  const old = gen.filter((t) => t.has_capsule && t.outdated).length;
+  $("coverage-text").textContent = fmt(S.coverage_text, { ready, total: gen.length }) + (old ? " · " + fmt(S.coverage_outdated, { n: old }) : "");
   el.setAttribute("aria-pressed", String(VZ.noCapsule));
 }
 
@@ -568,7 +597,7 @@ const promptsText = (n) => (n === 1 ? S.tl_prompt : fmt(S.tl_prompts, { n }));
 const activeDaysText = (n) => (n === 1 ? S.tl_active_day : fmt(S.tl_active_days, { n }));
 const laneKey = (l) => (l.kind === "unassigned" ? S.tl_unassigned : l.key);
 const laneRepos = (l) => (l.kind === "unassigned" ? S.tl_unassigned_hint : l.projects.length > 1 ? `${l.project} +${l.projects.length - 1}` : l.project);
-const capsuleText = (l) => (l.generatable ? (l.has_capsule ? S.chip_capsule : S.chip_no_capsule) : "");
+const capsuleText = (l) => (l.generatable ? (l.has_capsule ? S.chip_capsule + (l.outdated ? " · " + fmt(S.stale_tip, { n: l.new_messages }) : "") : S.chip_no_capsule) : "");
 const slotClass = (slot) => (slot >= 0 ? " s" + slot : "");
 
 function laneSummary(l) {
@@ -597,14 +626,14 @@ function renderTimeline() {
     }).join("");
     return `<div class="vz-row vz-lane">
       <button type="button" class="vz-label" data-key="${esc(l.key)}" data-tip="lane" aria-label="${esc(fmt(S.tl_open, { key: laneSummary(l) }))}">
-        <span class="vz-key">${esc(laneKey(l))}${l.has_capsule ? '<i aria-hidden="true">✓</i>' : ""}</span><span class="vz-sub">${esc(laneRepos(l))}</span></button>
+        <span class="vz-key">${esc(laneKey(l))}${l.has_capsule ? '<i aria-hidden="true">✓</i>' : ""}${l.has_capsule && l.outdated ? `<i class="vz-stale" aria-hidden="true" title="${esc(fmt(S.stale_tip, { n: l.new_messages }))}">↻</i>` : ""}</span><span class="vz-sub">${esc(laneRepos(l))}</span></button>
       <div class="vz-track">${grid(tl.ticks)}<i class="vz-line" style="left:${l.line.x1}%;width:${Math.max(0, l.line.x2 - l.line.x1)}%"></i>${marks}</div></div>`;
   };
   // labels are centred on their day, except at the two ends where they would spill outside the chart
   const ticks = tl.ticks.map((t) => `<span class="vz-tick" style="left:${t.x}%${t.x < 5 ? ";transform:translateX(-15%)" : t.x > 95 ? ";transform:translateX(-85%)" : ""}">${esc(dayLabel(t.day, multiYear))}</span>`).join("");
   const table = `<div class="sr"><table><caption>${esc(S.tl_table_caption)}. ${esc(fmt(S.tl_axis, { from: dayLabel(tl.range.from, true), to: dayLabel(tl.range.to, true) }))}</caption>
     <thead><tr><th>${esc(S.tl_col_task)}</th><th>${esc(S.tl_col_repos)}</th><th>${esc(S.tl_col_dates)}</th><th>${esc(S.tl_col_days)}</th><th>${esc(S.tl_col_prompts)}</th><th>${esc(S.tl_col_capsule)}</th></tr></thead><tbody>` +
-    tl.lanes.map((l) => `<tr><td>${esc(laneKey(l))}</td><td>${esc(l.projects.join(", "))}</td><td>${esc(dayLabel(l.first, true) + " – " + dayLabel(l.last, true))}</td><td>${l.active_days}</td><td>${l.prompts}</td><td>${esc(l.generatable ? (l.has_capsule ? S.tl_yes : S.tl_no) : "")}</td></tr>`).join("") + "</tbody></table></div>";
+    tl.lanes.map((l) => `<tr><td>${esc(laneKey(l))}</td><td>${esc(l.projects.join(", "))}</td><td>${esc(dayLabel(l.first, true) + " – " + dayLabel(l.last, true))}</td><td>${l.active_days}</td><td>${l.prompts}</td><td>${esc(l.generatable ? (l.has_capsule ? (l.outdated ? S.tl_outdated : S.tl_yes) : S.tl_no) : "")}</td></tr>`).join("") + "</tbody></table></div>";
   const more = tl.hidden > 0 ? `<button type="button" class="cta ghost sm" id="vz-more">${esc(fmt(S.tl_more, { n: Math.min(12, tl.hidden) }))}</button>` : "";
   el.innerHTML = head + `<div class="vz-scroll"><div class="vz-chart">
     <div class="vz-row" aria-hidden="true"><span class="vz-axis-pad"></span><div class="vz-ticks">${ticks}</div></div>${tl.lanes.map(lane).join("")}</div></div>
@@ -986,10 +1015,18 @@ function capsuleHtml(res) {
     sec(S.briefing, `<div class="briefing" id="briefing">${esc(c.briefing || "")}</div>`);
 }
 
+const staleOf = (d) => (d.stale && d.stale.known && d.stale.new_messages > 0 ? d.stale : null);
+const staleText = (st) => fmt(st.new_messages === 1 ? S.stale_badge_one : S.stale_badge, { n: st.new_messages, date: day(st.generated_at) });
+
 function genPanelHtml(d, hasCap) {
   const can = d.task && d.task.generatable;
   if (!can) return `<div class="note">${esc(S.unassigned_hint)}</div>`;
-  const title = hasCap ? "" : `<h2>${esc(S.no_capsule_title)}</h2><p>${esc(S.no_capsule_text)}</p>`;
+  const stale = hasCap ? staleOf(d) : null;
+  if (stale) { // the capsule is older than some of its messages: say so, and offer the same regenerate flow (estimate + confirm)
+    return `<div class="stale" role="status"><span class="chip warn">${esc(staleText(stale))}</span><button class="linkbtn" id="stale-see" type="button">${esc(S.stale_view_new)}</button>` +
+      `<button class="cta ai ghost sm" id="gen" type="button">${esc(S.stale_update)}</button><span class="hint">${esc(S.stale_update_hint)}</span></div><div id="genbox" aria-live="polite"></div>`;
+  }
+  const title = hasCap ? "" : `<h2>${esc(S.no_capsule_title)}</h2><p>${esc(S.no_capsule_text)}</p><p class="note">${esc(S.sessions_no_capsule_hint)} <button class="linkbtn" id="sess-jump" type="button">${esc(S.sessions_jump)}</button></p>`;
   if (hasCap) return `<div class="genslim"><span class="chip ai">${esc(S.ai_badge)}</span><button class="cta ai ghost sm" id="gen" type="button">${esc(S.regenerate)}</button><span class="hint">${esc(S.regenerate_hint)}</span></div><div id="genbox" aria-live="polite"></div>`;
   return `<div class="panel gen ai"><p style="margin:0 0 8px"><span class="chip ai">${esc(S.ai_badge)}</span></p>${title}<div class="row"><button class="cta ai" id="gen" type="button">${esc(S.generate)}</button></div><div id="genbox" aria-live="polite"></div></div>`;
 }
@@ -1007,7 +1044,7 @@ async function renderDetail(key, { animate = false } = {}) {
       ${cap ? `<button class="cta" id="resume" type="button">${esc(S.resume)}</button>` : ""}</div>
     ${genPanelHtml(d, !!cap)}
     ${cap ? capsuleHtml(cap) : ""}
-    <section class="block"><h2>${esc(S.sessions_heading)} (${d.sessions.length})</h2><div class="plain">${d.sessions.map((s) => `<div class="sess"><code>${esc(s.id.slice(0, 8))}</code><span class="chip repo">${esc(s.project)}</span><span>${esc(day(s.first_ts))}</span><span class="t">${esc(s.snippet)}</span></div>`).join("")}</div></section>`;
+    ${sessionsHtml(d, key)}`;
   if (animate) { el.classList.remove("fade-in"); void el.offsetWidth; el.classList.add("fade-in"); }
   $("back").addEventListener("click", () => { location.hash = ""; });
   const resume = $("resume");
@@ -1015,6 +1052,119 @@ async function renderDetail(key, { animate = false } = {}) {
   const gen = $("gen");
   if (gen) gen.addEventListener("click", () => startGenerate(key));
   el.querySelectorAll(".filelink").forEach((b) => b.addEventListener("click", () => showFileTasks(b.dataset.file, key)));
+  bindSessions(d);
+}
+
+// ---------- sessions: the user's own messages of a task (free, local) ----------
+const SESS = { key: "", scope: "all", markable: false, stale: null };
+const MSG_PAGE = 40;
+const plural = (n, one, many) => fmt(n === 1 ? one : many, { n });
+const clock = (ts) => (ts ? new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "");
+
+/** 'Sep 7, 09:03 – 09:19' for one day, 'Sep 7, 09:03 – Sep 8, 05:28' across days. */
+function sessionWhen(s) {
+  if (!s.first_ts) return "";
+  const a = new Date(s.first_ts), b = s.last_ts ? new Date(s.last_ts) : null;
+  if (!b || Number.isNaN(b.getTime()) || b.getTime() === a.getTime()) return evTime(s.first_ts);
+  return evTime(s.first_ts) + " – " + (a.toDateString() === b.toDateString() ? clock(s.last_ts) : evTime(s.last_ts));
+}
+
+function sessionItem(s, i) {
+  const mixed = SESS.markable && s.mixed;
+  const chips = `<span class="chip repo">${esc(s.project)}</span>` + (s.branch ? `<span class="chip">${esc(s.branch)}</span>` : "") +
+    `<span class="chip">${esc(plural(s.n_prompts, S.sessions_message_one, S.sessions_messages))}</span>` +
+    (mixed ? `<span class="chip">${esc(S.sessions_mixed_chip)}</span>` : "") +
+    (s.new_messages ? `<span class="chip warn">${esc(fmt(S.sessions_new_chip, { n: s.new_messages }))}</span>` : "");
+  return `<div class="sessitem" data-id="${esc(s.id)}" data-mixed="${mixed ? 1 : 0}" data-new="${s.new_messages || 0}">` +
+    `<button class="sessrow" type="button" aria-expanded="false" aria-controls="msgs-${i}"><span class="chev" aria-hidden="true">▸</span><code>${esc(s.id.slice(0, 8))}</code><span class="when">${esc(sessionWhen(s))}</span>${chips}</button>` +
+    `<div class="msgs" id="msgs-${i}" role="region" aria-label="${esc(fmt(S.sessions_region_label, { session: s.id.slice(0, 8) }))}" hidden></div></div>`;
+}
+
+function sessionsHtml(d, key) {
+  Object.assign(SESS, { key, scope: "all", markable: !!d.markable, stale: staleOf(d) });
+  const anyMixed = SESS.markable && d.sessions.some((s) => s.mixed);
+  const scopes = [["all", S.sessions_filter_all]];
+  if (anyMixed) scopes.push(["mine", fmt(S.sessions_filter_mine, { key })]);
+  if (SESS.stale) scopes.push(["new", fmt(S.sessions_filter_new, { n: SESS.stale.new_messages })]);
+  const tools = scopes.length > 1 ? `<div class="sesstools"><div class="seg" id="sessscope" role="group" aria-label="${esc(S.sessions_filter_label)}">` +
+    scopes.map(([v, label]) => `<button type="button" data-scope="${v}" aria-pressed="${v === "all"}">${esc(label)}</button>`).join("") + `</div></div>` : "";
+  return `<section class="block" id="sessions"><h2 tabindex="-1">${esc(S.sessions_heading)} (${d.sessions.length})</h2>` +
+    `<p class="note">${esc(S.sessions_note)}${anyMixed ? " " + esc(fmt(S.sessions_mixed_note, { key })) : ""}</p>${tools}` +
+    `<div class="sesslist" id="sesslist">${d.sessions.map(sessionItem).join("") || `<p>${esc(S.none)}</p>`}</div></section>`;
+}
+
+const msgHtml = (m, sid) => `<button class="msg${m.mine ? " mine" : ""}${m.new ? " new" : ""}" type="button" data-session="${esc(sid)}" data-turn="${m.turn}" data-key="" aria-label="${esc(fmt(S.sessions_open_message, { n: m.turn }))}">` +
+  `<span class="n">#${m.turn}</span><span class="w">${esc(evTime(m.ts))}${m.new ? ` <span class="chip warn" title="${esc(S.sessions_msg_new_label)}">${esc(S.sessions_msg_new)}</span>` : ""}</span>` +
+  `<span class="x">${esc(m.text)}${m.cut ? "…" : ""}${m.mine ? ` <span class="sr">${esc(fmt(S.sessions_msg_mine, { key: SESS.key }))}</span>` : ""}</span></button>`;
+
+/** Loads (reset) or appends (more) one page of messages of a session; a newer request for the same session wins. */
+async function loadMessages(item, reset) {
+  const box = item.querySelector(".msgs"), sid = item.dataset.id, mixed = item.dataset.mixed === "1";
+  const token = (box._tok = (box._tok || 0) + 1);
+  const offset = reset ? 0 : Number(box.dataset.offset || 0);
+  if (reset) { box.dataset.loaded = ""; box.innerHTML = `<p class="note" role="status">${esc(S.sessions_loading)}</p>`; }
+  const q = new URLSearchParams({ key: SESS.key, session: sid, scope: SESS.scope, offset: String(offset), limit: String(MSG_PAGE) });
+  try {
+    const r = await api("/api/messages?" + q);
+    if (token !== box._tok) return; // the scope changed or the box was reloaded meanwhile
+    const rows = r.messages.map((m) => msgHtml(m, sid)).join("");
+    const end = offset + r.messages.length;
+    box.dataset.offset = String(end);
+    box.dataset.loaded = "1";
+    const foot = (end < r.total ? `<button class="cta ghost sm msgmore" type="button">${esc(fmt(S.sessions_more, { n: Math.min(MSG_PAGE, r.total - end) }))}</button>` : "") +
+      (r.hidden_noise && r.scope === "all" ? `<p class="note">${esc(fmt(S.sessions_noise, { n: r.hidden_noise }))}</p>` : "");
+    if (reset) {
+      const empty = r.scope === "mine" ? S.sessions_empty_mine : r.scope === "new" ? S.sessions_empty_new : S.sessions_empty;
+      const marking = mixed && r.mark && r.scope === "all";
+      box.classList.toggle("marking", marking);
+      box.innerHTML = (marking ? `<p class="note">${esc(fmt(S.sessions_marking, { key: SESS.key }))}</p>` : "") +
+        (rows ? `<div class="msglist">${rows}</div>` : `<p class="note">${esc(fmt(empty, { key: SESS.key }))}</p>`) + `<div class="msgfoot">${foot}</div>`;
+    } else {
+      box.querySelector(".msglist").insertAdjacentHTML("beforeend", rows);
+      box.querySelector(".msgfoot").innerHTML = foot;
+    }
+  } catch (err) {
+    if (token === box._tok) box.innerHTML = `<p class="err" role="alert">${esc(S.sessions_error)} ${esc(err.message)}</p>`;
+  }
+}
+
+async function toggleSession(item, open) {
+  const row = item.querySelector(".sessrow"), box = item.querySelector(".msgs");
+  const willOpen = open === undefined ? row.getAttribute("aria-expanded") !== "true" : open;
+  row.setAttribute("aria-expanded", String(willOpen));
+  box.hidden = !willOpen;
+  if (willOpen && !box.dataset.loaded) await loadMessages(item, true);
+}
+
+/** Changes which messages are listed. 'new' shows only the sessions that have new messages, opened; the others keep their state. */
+function setSessionScope(scope) {
+  SESS.scope = scope;
+  document.querySelectorAll("#sessscope button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scope === scope)));
+  document.querySelectorAll("#sesslist .sessitem").forEach((item) => {
+    const hide = scope === "new" && !Number(item.dataset.new);
+    item.hidden = hide;
+    const open = item.querySelector(".sessrow").getAttribute("aria-expanded") === "true";
+    if (hide) return;
+    if (scope === "new" && !open) toggleSession(item, true);
+    else if (open) loadMessages(item, true);
+  });
+}
+
+function bindSessions(d) {
+  const list = $("sesslist");
+  if (list) list.addEventListener("click", (e) => {
+    const more = e.target.closest(".msgmore");
+    if (more) { loadMessages(more.closest(".sessitem"), false); return; }
+    const row = e.target.closest(".sessrow");
+    if (row) toggleSession(row.closest(".sessitem"));
+  });
+  const scope = $("sessscope");
+  if (scope) scope.addEventListener("click", (e) => { const b = e.target.closest("button[data-scope]"); if (b) setSessionScope(b.dataset.scope); });
+  const reveal = () => { const h = $("sessions"); h.scrollIntoView({ block: "start" }); h.querySelector("h2").focus({ preventScroll: true }); };
+  const see = $("stale-see");
+  if (see) see.addEventListener("click", () => { setSessionScope("new"); reveal(); });
+  const jump = $("sess-jump");
+  if (jump) jump.addEventListener("click", () => { const first = document.querySelector("#sesslist .sessitem"); reveal(); if (first) toggleSession(first, true); });
 }
 
 async function copyBriefing(btn, text) {
@@ -1125,7 +1275,7 @@ function closeEvidence() {
 }
 
 document.addEventListener("click", (e) => {
-  const b = e.target.closest && e.target.closest("button.cite");
+  const b = e.target.closest && e.target.closest("button.cite, button.msg");
   if (b) openEvidence(b);
 });
 $("ev-backdrop").addEventListener("click", closeEvidence);

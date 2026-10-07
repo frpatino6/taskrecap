@@ -3,9 +3,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_KEY_REGEX } from './config.js';
 import {
-  GENERIC_BRANCHES, KEY_MIN_MENTIONS, UNASSIGNED, detectKey, parseSession, projectName, promptDays, promptKeyCounts, redact,
+  GENERIC_BRANCHES, KEY_MIN_MENTIONS, UNASSIGNED, detectKey, findKeys, parseSession, projectName, promptDays, promptKeyCounts, redact,
 } from './sessions.js';
 import * as capsule from './capsule.js';
+import { isNoise } from './segment.js';
+
+/**
+ * When the user's own messages were written, in epoch ms (automatic ones such as "[Request interrupted" are left out):
+ * all of them, and for each key they cite the messages that cite it. Feeds the "outdated capsule" check, which is free.
+ */
+export function promptTimes(s, keyRegex) {
+  const all = [];
+  const byKey = {};
+  for (const p of s.prompts) {
+    const ms = Date.parse(p.ts);
+    if (!p.ts || Number.isNaN(ms) || isNoise(p.text)) continue;
+    all.push(ms);
+    for (const k of new Set(findKeys(p.text, keyRegex))) (byKey[k] || (byKey[k] = [])).push(ms);
+  }
+  return { all, byKey };
+}
 
 /** Light summary of one session file (the heavy prompt list is dropped after detection). */
 export function summarizeSession(file, keyRegex) {
@@ -17,13 +34,38 @@ export function summarizeSession(file, keyRegex) {
   const { days, keyDays } = promptDays(s, keyRegex);
   // days with prompts of the session, and, for each secondary key it cites often enough, the days of the prompts citing it
   const mentionDays = Object.fromEntries(Object.entries(keyDays).filter(([k]) => (mentions[k] || 0) >= KEY_MIN_MENTIONS));
+  const times = promptTimes(s, keyRegex);
+  const mentionTimes = Object.fromEntries(Object.entries(times.byKey).filter(([k]) => (mentions[k] || 0) >= KEY_MIN_MENTIONS));
   return {
     id: s.id, path: file, project: projectName(s), key, method,
     first_ts: s.first_ts, last_ts: s.last_ts, n_prompts: prompts.length, size: s.size,
     branch: branches[0] || '', title: s.title,
     snippet: prompts.length ? redact(prompts[0].text).replace(/\n/g, ' ').slice(0, 140) : '',
-    mentions, days, mention_days: mentionDays,
+    mentions, days, mention_days: mentionDays, prompt_ts: times.all, mention_ts: mentionTimes,
   };
+}
+
+/**
+ * Is the capsule of `key` out of date? Counts the user's messages written AFTER `generatedAt` in the sessions of the task
+ * (for a session the task only shares with others, only the messages that cite the key). Free: no AI, no file reading,
+ * because the message times are already in the session summaries. A capsule without a usable date is never guessed at.
+ * -> {known, new_messages, new_sessions, by_session: {sessionId: n}}
+ */
+export function capsuleStaleness(sessions, key, generatedAt) {
+  const out = { known: false, new_messages: 0, new_sessions: 0, by_session: {} };
+  const since = Date.parse(generatedAt);
+  if (!generatedAt || Number.isNaN(since)) return out;
+  out.known = true;
+  for (const s of sessions) {
+    const mine = s.key === key ? s.prompt_ts : (s.mentions[key] || 0) >= KEY_MIN_MENTIONS ? (s.mention_ts || {})[key] : null;
+    if (!mine || !mine.length) continue;
+    const fresh = mine.filter((t) => t > since).length;
+    if (!fresh) continue;
+    out.by_session[s.id] = fresh;
+    out.new_messages += fresh;
+    if (fresh === mine.length) out.new_sessions += 1; // every message of the task in this session is newer than the capsule
+  }
+  return out;
 }
 
 /**

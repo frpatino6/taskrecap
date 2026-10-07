@@ -182,7 +182,7 @@ test('coverage counts only tasks that can have a capsule, whatever is filtered; 
     task('unassigned', [cell(9, 4, 1)], { kind: 'unassigned', generatable: false }),
   ];
   const tl = buildTimeline(tasks, { repo: 'nope-repo' });
-  assert.deepEqual(tl.coverage, { ready: 1, total: 3 });
+  assert.deepEqual(tl.coverage, { ready: 1, total: 3, outdated: 0 });
   assert.deepEqual(buildTimeline(tasks, { capsule: 'none' }).lanes.map((l) => l.key), ['B-2', 'C-3']); // unassigned cannot have one
   assert.deepEqual(buildTimeline(tasks, { capsule: 'ready' }).lanes.map((l) => l.key), ['A-1']);
 });
@@ -192,7 +192,7 @@ test('tasks with no dated activity are not drawn but are counted', () => {
   assert.deepEqual(tl.lanes.map((l) => l.key), ['B-2']);
   assert.equal(tl.undated, 1);
   const empty = buildTimeline([]);
-  assert.deepEqual([empty.lanes, empty.total, empty.coverage], [[], 0, { ready: 0, total: 0 }]);
+  assert.deepEqual([empty.lanes, empty.total, empty.coverage], [[], 0, { ready: 0, total: 0, outdated: 0 }]);
 });
 
 test('isDay accepts real calendar days only: overflow dates are rejected, not rolled over', () => {
@@ -236,7 +236,7 @@ test('GET /api/timeline serves the layout; /api/tasks stays light (no activity)'
     assert.deepEqual(tl.lanes.map((l) => l.key), ['KK-1', 'KK-2', 'unassigned']);
     assert.equal(tl.lanes.find((l) => l.key === 'KK-1').marks.length, 2);
     assert.equal(tl.lanes[tl.lanes.length - 1].key, 'unassigned');
-    assert.deepEqual(tl.coverage, { ready: 0, total: 2 });
+    assert.deepEqual(tl.coverage, { ready: 0, total: 2, outdated: 0 });
     assert.deepEqual(tl.all_repos, ['api', 'app']);
     const [, onlyApi] = await get(srv, '/api/timeline?repo=api');
     assert.deepEqual(onlyApi.lanes.map((l) => l.key), ['KK-2']);
@@ -280,7 +280,7 @@ test('"tasks" counts match the coverage ring: sessions without a task key are re
     task('unassigned', [cell(9, 3, 1)], { kind: 'unassigned', generatable: false }),
   ];
   const tl = buildTimeline(tasks);
-  assert.deepEqual(tl.coverage, { ready: 1, total: 2 });
+  assert.deepEqual(tl.coverage, { ready: 1, total: 2, outdated: 0 });
   assert.deepEqual([tl.task_shown, tl.task_total], [2, tl.coverage.total]); // the footer and the ring talk about the same tasks
   assert.deepEqual([tl.unassigned_shown, tl.unassigned_total], [1, 1]);
   assert.deepEqual([tl.shown, tl.total], [3, 3]); // lanes drawn (what "show more" counts) still include the unassigned one
