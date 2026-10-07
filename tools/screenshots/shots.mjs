@@ -86,6 +86,33 @@ await check('capsule view: timeline and decisions render', async () => {
   await shot(page, '03b-capsule-full-light.png', { fullPage: true });
 });
 
+await check('capsule timeline: first column shows date and local time with a tooltip, in the browser timezone; the page does not overflow on a phone', async () => {
+  const expectedLabel = (tz, iso) => {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+    return `${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+  };
+  for (const [tz, width] of [['UTC', 1440], ['America/Bogota', 1440], ['Asia/Kolkata', 390]]) {
+    const ctx = await browser.newContext({ viewport: { width, height: 900 }, locale: 'en-US', timezoneId: tz });
+    const p = await ctx.newPage();
+    await p.addInitScript(() => { try { localStorage.setItem('tr-view', 'cards'); } catch (e) { /* ignore */ } });
+    p.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+    p.on('pageerror', (e) => consoleErrors.push('pageerror: ' + e.message));
+    await p.goto(base);
+    await p.waitForSelector('.card');
+    await p.locator('.card[data-key="SHOP-101"]').click();
+    await p.waitForSelector('table.tl2 tbody tr');
+    const detail = await (await p.request.get(new URL('api/tasks/SHOP-101', base).href)).json();
+    const rows = detail.capsule.capsule.timeline;
+    const shown = await p.locator('table.tl2 tbody tr td:first-child').allInnerTexts();
+    assert.deepEqual(shown.map((t) => t.trim()), rows.map((r) => expectedLabel(tz, r.ts)), `first column in ${tz}`);
+    assert.match((await p.locator('table.tl2 th').first().innerText()).trim(), /date and time/i);
+    assert.match(await p.locator('table.tl2 tbody tr td:first-child span').first().getAttribute('title'), /first message this row cites/i);
+    const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(overflow <= 1, `page overflows horizontally by ${overflow}px at ${width}px wide`);
+    await ctx.close();
+  }
+});
+
 await check('evidence panel opens from a citation and highlights the cited turn', async () => {
   await page.locator('#detail button.cite').first().scrollIntoViewIfNeeded();
   await page.locator('#detail button.cite').first().click();
