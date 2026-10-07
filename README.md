@@ -33,6 +33,8 @@ npm install -g taskrecap
 taskrecap
 ```
 
+taskrecap reads the session transcripts Claude Code already saves on your machine, in `~/.claude/projects/`. Nothing is uploaded anywhere. Use `--projects-dir <path>` to point it somewhere else.
+
 Requires Node 18+ and, only to *generate* capsules or use AI search, [Claude Code](https://claude.com/claude-code) logged in. No other dependencies.
 
 ```bash
