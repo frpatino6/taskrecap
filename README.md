@@ -8,7 +8,7 @@ You work on several repos, each with many tasks. Weeks later you need to know *w
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/01-home-light.png" alt="Task cards showing each capsule's objective, with free local search and an AI search clearly marked"></td>
+    <td width="50%"><img src="docs/screenshots/tweet-home-dark-search.png" alt="Free local search inside saved capsules: matching words are highlighted and each task says where it matched (objective or decisions), with the optional AI search clearly marked"></td>
     <td width="50%"><img src="docs/screenshots/03-capsule-view-light.png" alt="A capsule: objective, timeline with clickable evidence, decisions and their reasons"></td>
   </tr>
   <tr>

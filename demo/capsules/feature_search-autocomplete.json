@@ -1,0 +1,162 @@
+{
+ "key": "feature/search-autocomplete",
+ "capsule": {
+  "objective": "Add autocomplete to the acme-shop product search box, reusing the existing /api/suggest endpoint, with keyboard navigation and tests.",
+  "timeline": [
+   {
+    "date": "09-14",
+    "repo": "acme-shop",
+    "result": "Started the autocomplete in SearchBox.js with a 200 ms debounce that queries /api/suggest.",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 0
+     }
+    ]
+   },
+   {
+    "date": "09-14",
+    "repo": "acme-shop",
+    "result": "Reused the existing suggest endpoint (no new one) and added keyboard navigation (up/down/enter) for accessibility.",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 1
+     }
+    ]
+   },
+   {
+    "date": "09-14",
+    "repo": "acme-shop",
+    "result": "Added 6 tests covering arrows, enter and escape (SearchBox.test.js).",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 2
+     }
+    ]
+   },
+   {
+    "date": "09-14",
+    "repo": "acme-shop",
+    "result": "Agreed to leave the 'recent searches' idea for later; nothing implemented.",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 3
+     }
+    ]
+   }
+  ],
+  "decisions": [
+   {
+    "decision": "Reuse the existing /api/suggest endpoint instead of creating a new one.",
+    "why": "The user explicitly asked not to create a new endpoint.",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 1
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Debounce the input by 200 ms before querying suggestions.",
+    "why": "Reason not stated in the session; most likely to avoid one request per keystroke.",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 0
+     }
+    ],
+    "uncertain": true
+   },
+   {
+    "decision": "Add keyboard navigation (up/down/enter) to the suggestions.",
+    "why": "The assistant added it for accessibility.",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 1
+     }
+    ],
+    "uncertain": false
+   }
+  ],
+  "dead_ends": [],
+  "left_out": [
+   {
+    "text": "The 'recent searches' idea was postponed; nothing was implemented.",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 3
+     }
+    ]
+   }
+  ],
+  "pending": [
+   {
+    "text": "Decide when to build 'recent searches'.",
+    "cites": [
+     {
+      "session": "c3d4e5f6",
+      "turn": 3
+     }
+    ]
+   },
+   {
+    "text": "No commit is recorded for this branch yet.",
+    "cites": []
+   }
+  ],
+  "briefing": "Task feature/search-autocomplete in acme-shop: autocomplete for the product search box (src/search/SearchBox.js) with a 200 ms debounce, reusing the existing /api/suggest endpoint as the user required (do not create a new endpoint). Keyboard navigation (up/down/enter) was added and covered by 6 tests in SearchBox.test.js. The 'recent searches' idea was postponed on purpose. No commit is recorded for this branch yet, so the work may still be uncommitted."
+ },
+ "files": [
+  {
+   "short": "acme-shop/src/search/SearchBox.js",
+   "edits": 2,
+   "status": "final",
+   "last": "2026-09-14T15:08:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/search/SearchBox.test.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-14T15:12:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/search/suggest.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-14T15:08:00.000Z"
+  }
+ ],
+ "commits": {
+  "confirmed": [],
+  "possible": []
+ },
+ "sources": [
+  "`c3d4e5f6` (turns 0-3)"
+ ],
+ "info": {
+  "range_mode": {
+   "c3d4e5f6": "whole-session"
+  },
+  "dropped": {
+   "decisions": 0,
+   "dead_ends": 0,
+   "left_out": 0
+  },
+  "transcript_chars": 1049,
+  "capsule_call": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cost_usd": 0
+  },
+  "llm_calls": 0,
+  "cost_usd": 0
+ },
+ "markdown": "# Work capsule · feature/search-autocomplete\n\n> Generated automatically from: `c3d4e5f6` (turns 0-3). Citations `session:turn` point to the evidence.\n\n## Objective\nAdd autocomplete to the acme-shop product search box, reusing the existing /api/suggest endpoint, with keyboard navigation and tests.\n\n## Timeline\n| Date | Repo | Result | Evidence |\n|---|---|---|---|\n| 09-14 | acme-shop | Started the autocomplete in SearchBox.js with a 200 ms debounce that queries /api/suggest. | `c3d4e5f6:0` |\n| 09-14 | acme-shop | Reused the existing suggest endpoint (no new one) and added keyboard navigation (up/down/enter) for accessibility. | `c3d4e5f6:1` |\n| 09-14 | acme-shop | Added 6 tests covering arrows, enter and escape (SearchBox.test.js). | `c3d4e5f6:2` |\n| 09-14 | acme-shop | Agreed to leave the 'recent searches' idea for later; nothing implemented. | `c3d4e5f6:3` |\n\n## Decisions and why\n- **Reuse the existing /api/suggest endpoint instead of creating a new one.** — The user explicitly asked not to create a new endpoint. `c3d4e5f6:1`\n- **Debounce the input by 200 ms before querying suggestions.** _(uncertain)_ — Reason not stated in the session; most likely to avoid one request per keystroke. `c3d4e5f6:0`\n- **Add keyboard navigation (up/down/enter) to the suggestions.** — The assistant added it for accessibility. `c3d4e5f6:1`\n\n## Files touched\n**Final**\n- `acme-shop/src/search/SearchBox.js` (2x)\n- `acme-shop/src/search/SearchBox.test.js` (1x)\n- `acme-shop/src/search/suggest.js` (1x)\n\n## Commits\n_(none carrying the task key)_\n\n## Dead ends\n_(none)_\n\n## Left out\n- The 'recent searches' idea was postponed; nothing was implemented. `c3d4e5f6:3`\n\n## Pending\n- Decide when to build 'recent searches'. `c3d4e5f6:3`\n- No commit is recorded for this branch yet.\n\n## Briefing to resume\n> Task feature/search-autocomplete in acme-shop: autocomplete for the product search box (src/search/SearchBox.js) with a 200 ms debounce, reusing the existing /api/suggest endpoint as the user required (do not create a new endpoint). Keyboard navigation (up/down/enter) was added and covered by 6 tests in SearchBox.test.js. The 'recent searches' idea was postponed on purpose. No commit is recorded for this branch yet, so the work may still be uncommitted.\n",
+ "generated_at": "2026-10-07T05:35:28Z"
+}

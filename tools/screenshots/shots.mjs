@@ -108,7 +108,7 @@ await check('file -> tasks: panel lists other tasks that touched the file', asyn
 });
 
 await check('AI confirm step: estimate shown, nothing is spent', async () => {
-  await page.goto(base + '#/task/SHOP-103');
+  await page.goto(base + '#/task/SHOP-106');
   await page.waitForSelector('#gen');
   await page.click('#gen');
   await page.waitForSelector('#ok', { timeout: 8000 });
@@ -135,11 +135,11 @@ const FAKE_STREAM = () => {
       const events = [
         { type: 'start', stages: ['scan', 'redact', 'votes', 'merge', 'evidence', 'write', 'validate', 'save'] },
         { type: 'stage', id: 'scan', status: 'running' },
-        { type: 'stage', id: 'scan', status: 'done', code: 'scan_done', vars: { sessions: 1, turns: 24 } },
-        { type: 'stage', id: 'redact', status: 'done', code: 'redact_none', vars: { turns: 24 } },
-        { type: 'stage', id: 'votes', status: 'running', code: 'votes_start', vars: { session: 'c3d4e5f6', votes: 3, turns: 24 } },
-        { type: 'log', code: 'vote_done', vars: { n: 1, of: 3, ranges: 1, turns: 9, session: 'c3d4e5f6' }, level: 'info', usage: usage(1, 1800, 0.012) },
-        { type: 'log', code: 'vote_done', vars: { n: 2, of: 3, ranges: 1, turns: 9, session: 'c3d4e5f6' }, level: 'info', usage: usage(2, 3600, 0.024) },
+        { type: 'stage', id: 'scan', status: 'done', code: 'scan_done', vars: { sessions: 1, turns: 2 } },
+        { type: 'stage', id: 'redact', status: 'done', code: 'redact_none', vars: { turns: 2 } },
+        { type: 'stage', id: 'votes', status: 'running', code: 'votes_start', vars: { session: 'c9d0e1f2', votes: 3, turns: 2 } },
+        { type: 'log', code: 'vote_done', vars: { n: 1, of: 3, ranges: 1, turns: 2, session: 'c9d0e1f2' }, level: 'info', usage: usage(1, 1800, 0.012) },
+        { type: 'log', code: 'vote_done', vars: { n: 2, of: 3, ranges: 1, turns: 2, session: 'c9d0e1f2' }, level: 'info', usage: usage(2, 3600, 0.024) },
       ];
       let i = 0;
       return Promise.resolve(new Response(new ReadableStream({
@@ -155,7 +155,7 @@ const FAKE_STREAM = () => {
 };
 page = await newPage('light', FAKE_STREAM);
 await check('AI progress panel: live stages, activity log and cancel button (scripted stream, no spend)', async () => {
-  await page.goto(base + '#/task/SHOP-103');
+  await page.goto(base + '#/task/SHOP-106');
   await page.waitForSelector('#gen');
   await page.click('#gen');
   await page.waitForSelector('#ok');
@@ -179,6 +179,36 @@ await check('dark theme: home and capsule view', async () => {
   await shot(page, '03-capsule-view-dark.png');
 });
 await page.context().close();
+
+// ---------- tweet-ready images: dark, 16:9 (1600x900 @2x), demo data only ----------
+// Screenshot-only CSS (never shipped): drop the demo banner and the long explanatory notes so the cards and the search result
+// are what you see. The text of the post should say these are fictional demo sessions.
+const TWEET_CSS = '#banner, #search-note, #filesearch, .lead { display: none !important; } main#home h1 { margin-top: 8px; }';
+// Search terms for the tweet images. `checkout` was tried first but matches only 3 tasks, one of them without a 'Found in' badge.
+// `test` fills the frame (4 hits, clean excerpts; the last row is cut like a scrolled page); `payment` gives 2 clean cards with empty space below.
+const TWEET_QUERY = 'test';
+const TWEET_QUERY_COMPACT = 'payment';
+async function tweetShot(name, query) {
+  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2, colorScheme: 'dark', locale: 'en-US' });
+  const p = await ctx.newPage();
+  p.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  await p.goto(base);
+  await p.waitForSelector('.card');
+  await p.addStyleTag({ content: TWEET_CSS });
+  if (query) {
+    await p.fill('#q', query);
+    await p.waitForFunction(() => document.querySelectorAll('#grid .card mark').length > 0, null, { timeout: 8000 });
+  }
+  await p.waitForTimeout(800);
+  await p.screenshot({ path: path.join(OUT, name) });
+  await ctx.close();
+}
+await check('tweet images: dark home with ready capsules, idle and with a search in progress (two variants)', async () => {
+  await tweetShot('tweet-home-dark.png');
+  await tweetShot('tweet-home-dark-search.png', TWEET_QUERY);
+  await tweetShot('tweet-home-dark-search-compact.png', TWEET_QUERY_COMPACT);
+  assert.ok(fs.statSync(path.join(OUT, 'tweet-home-dark-search.png')).size > 50000);
+});
 
 await check('no console errors during the whole run', async () => {
   assert.deepEqual(consoleErrors, []);
