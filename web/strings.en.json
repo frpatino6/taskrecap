@@ -55,6 +55,8 @@
   "generated_at": "Generated {date}",
   "evidence": "Evidence",
   "date": "Date",
+  "date_time": "Date and time",
+  "timeline_time_hint": "Local time of the first message this row cites",
   "repo": "Repo",
   "result": "Result",
   "mode_free": "Free · local",

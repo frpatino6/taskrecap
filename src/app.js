@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import * as capsule from './capsule.js';
 import { APP_NAME, APP_TITLE, DEFAULT_KEY_REGEX, VERSION } from './config.js';
 import { Aborted, estimateCost, extractJson, askLlm, isAbort } from './llm.js';
-import { readEvidence, parseSources, resolveSession } from './evidence.js';
+import { readEvidence, parseSources, resolveSession, withRowTimes } from './evidence.js';
 import { FileIndex } from './files.js';
 import { STAGES, clip, log, makeMatchScanner, makeReporter, stage, throttle } from './progress.js';
 import { buildTimeline } from './timeline.js';
@@ -126,7 +126,14 @@ export class App {
     const task = this.listTasks().find((t) => t.key === key) || null;
     const cap = this.store.load(key);
     if (!task && !sessions.length && !cap) return null;
-    return { task, sessions, capsule: cap };
+    return { task, sessions, capsule: this.withRowTimes(cap) };
+  }
+
+  /** The stored capsule plus, on each timeline row, the time of its first cited message (free; the stored files are unchanged). */
+  withRowTimes(cap) {
+    const timeline = cap && cap.capsule && cap.capsule.timeline;
+    if (!Array.isArray(timeline) || !timeline.length) return cap;
+    return { ...cap, capsule: { ...cap.capsule, timeline: withRowTimes(timeline, this.index.listFiles()) } };
   }
 
   /**

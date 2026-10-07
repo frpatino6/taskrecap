@@ -1,5 +1,6 @@
 // Free, local evidence lookup: turns a capsule citation ({session: id8, turn: N}) back into the original messages.
 // Turn numbers come from loadRichTurns(), the same loader the capsule generator used, so the indexing is identical.
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { loadRichTurns } from './capsule.js';
@@ -100,4 +101,48 @@ export function readEvidence(file, turn, { context = DEFAULT_CONTEXT, ranges = n
     },
     turn: n, turns: shown, confidence, warning,
   };
+}
+
+// ---------- time of day for timeline rows ----------
+
+const STAMP_CACHE = new Map(); // `${file}:${mtimeMs}:${size}` -> one ISO timestamp (or null) per turn; tiny, so no eviction needed
+const validStamp = (v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null);
+
+/** Timestamp of every turn of a session file, in the same turn order the capsule generator used. Cached per file version. */
+export function turnTimestamps(file) {
+  let key = file;
+  try {
+    const st = fs.statSync(file);
+    key = `${file}:${st.mtimeMs}:${st.size}`;
+  } catch {
+    return [];
+  }
+  if (!STAMP_CACHE.has(key)) STAMP_CACHE.set(key, loadRichTurns(file).map((t) => validStamp(t.ts)));
+  return STAMP_CACHE.get(key);
+}
+
+/**
+ * When did a timeline row happen? The timestamp of the FIRST cited message that can be located (cites are tried in the
+ * order the capsule lists them). Never guesses: no resolvable cite or no timestamp -> null.
+ */
+export function citeTimestamp(cites, files) {
+  for (const c of Array.isArray(cites) ? cites : []) {
+    try {
+      const n = typeof c.turn === 'number' ? c.turn : (/^\d{1,9}$/.test(String(c.turn)) ? Number(c.turn) : NaN);
+      if (!Number.isInteger(n) || n < 0) continue;
+      const stamps = turnTimestamps(resolveSession(files, c.session));
+      if (n < stamps.length && stamps[n]) return stamps[n];
+    } catch {
+      // session gone, ambiguous id, unreadable file: this cite cannot give a time, try the next one
+    }
+  }
+  return null;
+}
+
+/** A copy of `timeline` whose rows carry `ts` (ISO) when their first cited message is found. The stored capsule is not touched. */
+export function withRowTimes(timeline, files) {
+  return (timeline || []).map((row) => {
+    const ts = citeTimestamp(row && row.cites, files);
+    return ts ? { ...row, ts } : { ...row };
+  });
 }

@@ -147,7 +147,7 @@ body.evopen { overflow: hidden; }
 table.tl2 { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 table.tl2 th, table.tl2 td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 table.tl2 th { color: var(--muted); font-weight: 600; font-size: 13px; }
-table.tl2 td:nth-child(1), table.tl2 td:nth-child(2) { white-space: nowrap; }
+table.tl2 th:nth-child(1), table.tl2 td:nth-child(1), table.tl2 td:nth-child(2) { white-space: nowrap; }
 table.tl2 td:nth-child(2) { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
 .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
 /* ---- modes: normal (free, local) vs AI (uses tokens) ---- */
@@ -951,13 +951,25 @@ const cites = (cs) => (cs && cs.length ? ` <span class="cites">${cs.map((c) => `
 const list = (items, render, cls) => (items && items.length ? `<ul class="items ${cls || ""}">${items.map((i) => `<li>${render(i)}</li>`).join("")}</ul>` : `<p>${esc(S.none)}</p>`);
 const commitLi = (c) => `<code>${esc(c.hash)}</code> <code>${esc(c.branch)}</code> ${esc(c.msg)}` + (c.pushed ? ` <span class="chip active">${esc(S.pushed)}</span>` : "") + (c.undone ? ` <span class="chip warn">${esc(S.undone)}</span>` : "");
 
+const pad2 = (n) => String(n).padStart(2, "0");
+/** 'MM-DD HH:MM' (24 h) in the browser's own timezone from an ISO timestamp; null when the row has no usable time. */
+function whenLabel(ts) {
+  const d = ts ? new Date(ts) : null;
+  return d && !Number.isNaN(d.getTime()) ? `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : null;
+}
+/** The first cell of a timeline row: date and time of its first cited message, or just the stored date when no time is known. */
+function whenCell(row) {
+  const label = whenLabel(row.ts);
+  return label ? `<span title="${esc(S.timeline_time_hint)}">${esc(label)}</span>` : esc(row.date);
+}
+
 function capsuleHtml(res) {
   CAP_KEY = res.key || "";
   const c = res.capsule || {};
   const files = res.files || [], fin = files.filter((f) => f.status === "final"), rev = files.filter((f) => f.status === "reverted");
   const cm = res.commits || { confirmed: [], possible: [] };
-  const tl = (c.timeline || []).length ? `<div class="tablewrap"><table class="tl2"><thead><tr><th>${esc(S.date)}</th><th>${esc(S.repo)}</th><th>${esc(S.result)}</th><th>${esc(S.evidence)}</th></tr></thead><tbody>` +
-    c.timeline.map((t) => `<tr><td>${esc(t.date)}</td><td>${esc(t.repo)}</td><td>${esc(t.result)}</td><td>${cites(t.cites)}</td></tr>`).join("") + `</tbody></table></div>` : `<p>${esc(S.none)}</p>`;
+  const tl = (c.timeline || []).length ? `<div class="tablewrap"><table class="tl2"><thead><tr><th>${esc(S.date_time)}</th><th>${esc(S.repo)}</th><th>${esc(S.result)}</th><th>${esc(S.evidence)}</th></tr></thead><tbody>` +
+    c.timeline.map((t) => `<tr><td>${whenCell(t)}</td><td>${esc(t.repo)}</td><td>${esc(t.result)}</td><td>${cites(t.cites)}</td></tr>`).join("") + `</tbody></table></div>` : `<p>${esc(S.none)}</p>`;
   const dec = (c.decisions || []).length ? c.decisions.map((d) => `<div class="decision"><strong>${esc(d.decision)}${d.uncertain ? ` <span class="chip warn">${esc(S.uncertain)}</span>` : ""}</strong><span>${esc(d.why || S.no_reason)}${cites(d.cites)}</span></div>`).join("") : `<p>${esc(S.none)}</p>`;
   const fileBtn = (f) => `<button class="filelink" type="button" data-file="${esc(f.short)}">${esc(f.short)}</button>`;
   const filesHtml = `<p class="note" style="margin-top:0">${esc(S.files_hint)}</p>` +
