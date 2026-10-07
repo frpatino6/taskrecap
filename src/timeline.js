@@ -11,7 +11,12 @@ const MAX_TICKS = 8;
 const TICK_STEPS = [1, 2, 7, 14, 30, 60, 90, 180, 365];
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export const isDay = (v) => typeof v === 'string' && DAY_RE.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+/** A real calendar day: it must also format back to itself, because Date.parse rolls '2026-02-30' over to March 2. */
+export const isDay = (v) => {
+  if (typeof v !== 'string' || !DAY_RE.test(v)) return false;
+  const ms = Date.parse(`${v}T00:00:00Z`);
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === v;
+};
 /** 'YYYY-MM-DD' -> whole days since 1970-01-01 (UTC arithmetic, so daylight saving time never shifts it). */
 export const dayNumber = (day) => Math.round(Date.parse(`${day}T00:00:00Z`) / DAY_MS);
 export const dayFromNumber = (n) => new Date(n * DAY_MS).toISOString().slice(0, 10);

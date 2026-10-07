@@ -7,7 +7,7 @@ import { parseSession, promptDays, localDay } from '../src/sessions.js';
 import { startServer, timelineOptions } from '../src/server.js';
 import { SessionIndex, taskActivity } from '../src/tasks.js';
 import {
-  MARK_MAX, MARK_MIN, MAX_REPO_COLORS, MIN_SPAN_DAYS, buildTimeline, dayFromNumber, dayNumber, markSize, pickTicks, primaryRepo, repoSlots, xPercent,
+  MARK_MAX, MARK_MIN, MAX_REPO_COLORS, MIN_SPAN_DAYS, buildTimeline, dayFromNumber, dayNumber, isDay, markSize, pickTicks, primaryRepo, repoSlots, xPercent,
 } from '../src/timeline.js';
 import { makeSession, tmpDir } from './helpers.js';
 
@@ -195,6 +195,13 @@ test('tasks with no dated activity are not drawn but are counted', () => {
   assert.deepEqual([empty.lanes, empty.total, empty.coverage], [[], 0, { ready: 0, total: 0 }]);
 });
 
+test('isDay accepts real calendar days only: overflow dates are rejected, not rolled over', () => {
+  for (const ok of ['2026-09-01', '2026-02-28', '2028-02-29', '2026-12-31', '2026-04-30']) assert.equal(isDay(ok), true, ok);
+  for (const bad of ['2026-02-30', '2026-04-31', '2026-02-29', '2026-13-01', '2026-00-10', '2026-09-00', '2026-09-32', '26-09-01', '2026-9-1', '', null, undefined, 20260901]) {
+    assert.equal(isDay(bad), false, String(bad));
+  }
+});
+
 test('timelineOptions ignores malformed query values', () => {
   const o = timelineOptions(new URLSearchParams('repo=app&from=2026-09-01&capsule=weird&limit=abc&keys=a%0Ab'));
   assert.deepEqual(o, { repo: 'app', from: '2026-09-01', keys: ['a', 'b'] });
@@ -240,6 +247,27 @@ test('GET /api/timeline serves the layout; /api/tasks stays light (no activity)'
     assert.equal(none.total, 2);
     const [, tasks] = await get(srv, '/api/tasks');
     assert.ok(tasks.tasks.every((t) => !('activity' in t)));
+  } finally {
+    srv.server.close();
+  }
+});
+
+test('GET /api/timeline ignores an overflow date such as from=2026-02-30 instead of rolling it over', async () => {
+  const tmp = tmpDir();
+  const proj = path.join(tmp, 'projects');
+  makeSession(proj, 'AAAAAAAA', [[at(3, 1), 'KK-1 a', 'ok'], [at(3, 5), 'KK-1 b', 'ok']], { branch: 'fix/KK-1', cwd: '/x/app' });
+  const app = new App({ projectsDir: proj, cacheDir: path.join(tmp, 'cache'), usageFile: path.join(tmp, 'usage.json') });
+  const srv = await startServer(app, 0);
+  try {
+    const [, plain] = await get(srv, '/api/timeline');
+    const [status, bad] = await get(srv, '/api/timeline?from=2026-02-30');
+    assert.equal(status, 200);
+    assert.deepEqual(bad.range, plain.range);
+    assert.deepEqual(bad.lanes.map((l) => l.marks.map((m) => m.day)), plain.lanes.map((l) => l.marks.map((m) => m.day)));
+    const [, badTo] = await get(srv, '/api/timeline?to=2026-04-31');
+    assert.deepEqual(badTo.range, plain.range);
+    const [, good] = await get(srv, '/api/timeline?from=2026-03-02');
+    assert.equal(good.range.from, '2026-03-02');
   } finally {
     srv.server.close();
   }
