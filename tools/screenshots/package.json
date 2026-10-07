@@ -1,0 +1,8 @@
+{
+  "name": "taskrecap-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Maintainer tooling: README screenshots with Playwright. Not part of the published package.",
+  "scripts": { "shots": "node shots.mjs" },
+  "devDependencies": { "playwright": "^1.50.0" }
+}

@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>taskrecap</title>
+<style>
+:root {
+  --bg: #f6f7fb; --surface: #ffffff; --surface-2: #eef0f7; --text: #1b1f2e; --muted: #5d6479;
+  --border: #dfe3ee; --accent: #4f46e5; --accent-soft: #e9e8fd; --accent-text: #ffffff;
+  --warn: #b45309; --warn-soft: #fef3c7; --active: #0369a1; --active-soft: #e0f2fe;
+  --done: #047857; --done-soft: #d1fae5; --danger: #b91c1c; --danger-soft: #fee2e2;
+  --shadow: 0 1px 2px rgba(20,24,40,.06), 0 6px 20px rgba(20,24,40,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1118; --surface: #171b26; --surface-2: #202636; --text: #e8ebf5; --muted: #98a0b8;
+    --border: #2a3144; --accent: #8b85ff; --accent-soft: #25254a; --accent-text: #0e1118;
+    --warn: #fbbf24; --warn-soft: #3a2d0c; --active: #7dd3fc; --active-soft: #0f2c3d;
+    --done: #6ee7b7; --done-soft: #0d3326; --danger: #fca5a5; --danger-soft: #3d1717;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1118; --surface: #171b26; --surface-2: #202636; --text: #e8ebf5; --muted: #98a0b8;
+  --border: #2a3144; --accent: #8b85ff; --accent-soft: #25254a; --accent-text: #0e1118;
+  --warn: #fbbf24; --warn-soft: #3a2d0c; --active: #7dd3fc; --active-soft: #0f2c3d;
+  --done: #6ee7b7; --done-soft: #0d3326; --danger: #fca5a5; --danger-soft: #3d1717;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+code { font: 0.86em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; word-break: break-word; }
+button { font: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.banner { position: sticky; top: 0; z-index: 60; background: var(--warn-soft); color: var(--warn); text-align: center; padding: 8px 16px; font-size: 14px; font-weight: 600; border-bottom: 1px solid var(--border); }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px 64px; }
+header.top { display: flex; align-items: center; gap: 12px; padding: 24px 0 8px; }
+.logo { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; font-size: 22px; }
+.brand { font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
+.brand small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); letter-spacing: 0; }
+.theme { margin-left: auto; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.15; letter-spacing: -.02em; margin: 24px 0 8px; }
+.lead { color: var(--muted); margin: 0 0 20px; max-width: 760px; }
+.search { position: relative; }
+.search input { width: 100%; font: inherit; padding: 16px 18px 16px 48px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.search span { position: absolute; left: 17px; top: 50%; transform: translateY(-50%); font-size: 18px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); margin: 28px 0; }
+.panel h2 { font-size: 15px; margin: 0 0 4px; }
+.panel p.hint { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+.axis { position: relative; margin-left: 150px; height: 20px; border-bottom: 1px solid var(--border); }
+.axis i { position: absolute; top: 0; font-style: normal; font-size: 12px; color: var(--muted); transform: translateX(-50%); }
+.lane { display: flex; align-items: center; height: 38px; }
+.lane b { width: 150px; flex: none; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px; }
+.track { position: relative; flex: 1; height: 100%; }
+.bar { position: absolute; top: 12px; height: 14px; border-radius: 8px; background: var(--accent-soft); border: 1px solid var(--accent); }
+.dot { position: absolute; top: 14px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--accent); }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+.card { text-align: left; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; transition: transform .15s, border-color .15s; }
+.card:hover { transform: translateY(-3px); border-color: var(--accent); }
+.card .k { font-size: 20px; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.card .t { color: var(--muted); font-size: 14px; }
+.card .s { font-size: 14.5px; display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.chip { font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.active { background: var(--active-soft); color: var(--active); }
+.chip.done { background: var(--done-soft); color: var(--done); }
+.chip.repo { background: var(--accent-soft); color: var(--accent); }
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+.back { background: none; border: none; color: var(--accent); font-weight: 600; padding: 16px 0 4px; }
+.hero { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; margin: 8px 0 24px; }
+.hero h1 { margin: 4px 0; }
+.hero .t { color: var(--muted); font-size: 17px; margin: 0; max-width: 680px; }
+.cta { background: var(--accent); color: var(--accent-text); border: none; border-radius: 14px; padding: 16px 24px; font-weight: 700; font-size: 17px; box-shadow: var(--shadow); min-height: 52px; }
+.cta:hover { filter: brightness(1.08); }
+.cta.ok { background: var(--done); color: var(--bg); }
+.note { font-size: 13px; color: var(--muted); background: var(--surface-2); border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; }
+section.block { margin: 32px 0; }
+section.block h2 { font-size: 21px; letter-spacing: -.01em; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.tl { list-style: none; margin: 0; padding: 0 0 0 20px; border-left: 3px solid var(--accent-soft); }
+.tl li { position: relative; padding: 0 0 18px 20px; }
+.tl li::before { content: ""; position: absolute; left: -29px; top: 6px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); }
+.tl .d { font-weight: 700; font-size: 14px; color: var(--accent); }
+.tl .r { font-size: 12.5px; color: var(--muted); margin-left: 8px; }
+.tl .o { margin: 2px 0 0; }
+.decision { background: var(--surface); border: 1px solid var(--border); border-left: 5px solid var(--accent); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; }
+.decision strong { display: block; }
+.decision span { color: var(--muted); font-size: 15px; }
+.plain { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; }
+.plain ul, .items { margin: 0; padding-left: 20px; }
+.plain li, .items li { margin: 6px 0; }
+.dead li::marker { color: var(--danger); content: "✕  "; }
+.todo li::marker { color: var(--warn); content: "☐  "; }
+.briefing { background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 12px; padding: 16px 18px; font-size: 15px; }
+details { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px 16px; margin-bottom: 10px; }
+summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+.sticky { position: sticky; bottom: 12px; display: flex; justify-content: center; pointer-events: none; }
+.sticky .cta { pointer-events: auto; }
+[hidden] { display: none !important; }
+@media (max-width: 560px) {
+  header.top { flex-wrap: wrap; } .brand { flex: 1 1 0; min-width: 0; } .theme { order: 2; } .usage { order: 3; flex-basis: 100%; margin-left: 0; }
+  .axis { margin-left: 90px; } .lane b { width: 90px; }
+  .hero .cta { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+.cta[disabled] { opacity: .6; cursor: progress; }
+.cta.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
+.panel.gen { margin: 0 0 28px; }
+.genslim { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin: 0 0 20px; }
+.cta.sm { min-height: 36px; padding: 6px 14px; font-size: 14px; }
+.genslim .hint { font-size: 13px; color: var(--muted); }
+.panel.gen p { margin: 0 0 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.err { color: var(--danger); background: var(--danger-soft); border-radius: 10px; padding: 10px 14px; margin-top: 12px; }
+.okmsg { color: var(--done); background: var(--done-soft); border-radius: 10px; padding: 10px 14px; margin-top: 12px; }
+.cites code { font-size: .75em; }
+button.cite { font: .75em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); color: var(--accent); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px; cursor: pointer; }
+button.cite:hover, button.cite:focus-visible { border-color: var(--accent); background: var(--accent-soft); }
+/* ---- evidence side panel (the original messages behind a citation) ---- */
+body.evopen { overflow: hidden; }
+.evoverlay { position: fixed; inset: var(--banner-h, 0px) 0 0 0; z-index: 50; }
+.evbackdrop { position: absolute; inset: 0; background: rgba(10, 12, 20, .45); }
+.evpanel { position: absolute; top: 0; right: 0; bottom: 0; width: min(580px, 100%); background: var(--bg); border-left: 1px solid var(--border); box-shadow: var(--shadow); overflow-y: auto; padding: 20px; outline: none; }
+.evhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.evhead h2 { margin: 0; font-size: 19px; }
+.evmeta { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 14px; margin: 14px 0; }
+.evmeta dt { color: var(--muted); }
+.evmeta dd { margin: 0; overflow-wrap: anywhere; }
+.evresume { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 8px; }
+.evturn { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 10px 0; }
+.evturn.dim { opacity: .78; }
+.evturn.cited { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.evturn h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.evturn.cited h3 { color: var(--accent); }
+.evrole { display: block; font-weight: 700; font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); margin: 8px 0 2px; }
+.evtext { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; margin: 0; }
+.evtext.muted { color: var(--muted); font-style: italic; }
+.evextra { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.evextra code { display: inline-block; margin: 2px 4px 2px 0; }
+.evwarn { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 14px; margin: 10px 0; font-size: 14px; }
+@media (max-width: 560px) { .evpanel { border-left: none; padding: 16px; } }
+.sess { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14.5px; }
+.sess:last-child { border-bottom: none; }
+table.tl2 { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+table.tl2 th, table.tl2 td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.tl2 th { color: var(--muted); font-weight: 600; font-size: 13px; }
+table.tl2 td:nth-child(1), table.tl2 td:nth-child(2) { white-space: nowrap; }
+table.tl2 td:nth-child(2) { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+/* ---- modes: normal (free, local) vs AI (uses tokens) ---- */
+:root { --ai: #a21caf; --ai-soft: #fae8ff; --ai-text: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ai: #e879f9; --ai-soft: #3b1646; --ai-text: #1a0820; } }
+:root[data-theme="dark"] { --ai: #e879f9; --ai-soft: #3b1646; --ai-text: #1a0820; }
+.usage { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; background: var(--ai-soft); color: var(--ai); border: 1px solid var(--ai); border-radius: 12px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
+.usage small { font-weight: 400; opacity: .85; }
+.theme { margin-left: 0; }
+.chip.free { background: var(--done-soft); color: var(--done); }
+.chip.ai { background: var(--ai-soft); color: var(--ai); }
+.modes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; }
+.controls { display: grid; gap: 12px; margin: 12px 0 0; }
+@media (min-width: 860px) { .controls { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 16px; } .controls .search-note { margin: 0 !important; } }
+.cta.ai { background: var(--ai); color: var(--ai-text); }
+.cta.ai.ghost { background: var(--ai-soft); color: var(--ai); border: 1px solid var(--ai); }
+.aibox { max-width: none; }
+.panel.ai { border-color: var(--ai); background: linear-gradient(var(--ai-soft), var(--surface)); margin: 16px 0; }
+.panel.ai h2 { color: var(--ai); }
+.excerpt { font-size: 13px; color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
+.reason { font-size: 14px; color: var(--ai); }
+.airesults h2 { font-size: 18px; color: var(--ai); margin: 24px 0 4px; }
+.search-note { max-width: none; }
+/* ---- live progress for AI actions ---- */
+.progress { margin: 16px 0; }
+.pg-head { display: flex; align-items: center; gap: 12px; }
+.pg-head h2 { flex: 1; margin: 0; font-size: 16px; }
+.pg-time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }
+.spinner { width: 20px; height: 20px; flex: none; border-radius: 50%; border: 3px solid var(--ai-soft); border-top-color: var(--ai); animation: spin .8s linear infinite; }
+.pg-head.ended .spinner { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.pg-usage { margin: 6px 0 12px; min-height: 1.5em; font-size: 14px; font-weight: 600; color: var(--ai); }
+.pg-stages { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 2px; }
+.pg-stages li { position: relative; display: grid; grid-template-columns: 24px 1fr; gap: 0 8px; align-items: start; padding: 6px 8px; border-radius: 10px; color: var(--muted); transition: background .2s; }
+.pg-stages li[data-status="running"] { background: var(--ai-soft); color: var(--text); font-weight: 600; }
+.pg-stages li[data-status="done"] { color: var(--text); }
+.pg-ico { width: 20px; height: 20px; display: grid; place-items: center; font-weight: 700; line-height: 1; }
+.pg-stages li[data-status="done"] .pg-ico { color: var(--done); }
+.pg-stages li[data-status="error"] .pg-ico { color: var(--danger); }
+.pg-stages li[data-status="cancelled"] .pg-ico { color: var(--warn); }
+.pg-stages li[data-status="running"] .pg-ico { font-size: 0; }
+.pg-stages li[data-status="running"] .pg-ico::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--ai-soft); border-top-color: var(--ai); animation: spin .8s linear infinite; }
+.pg-detail { grid-column: 2; font-size: 13.5px; font-weight: 400; color: var(--muted); overflow-wrap: anywhere; }
+.pg-log { list-style: none; margin: 0 0 12px; padding: 8px 12px; max-height: 220px; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 13.5px; }
+.pg-log li { padding: 2px 0; overflow-wrap: anywhere; }
+.pg-log li.warn { color: var(--warn); }
+.pg-log time { color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
+.pg-matches { margin: 0 0 12px; }
+.pg-matches h3 { font-size: 14px; margin: 0 0 6px; color: var(--ai); }
+.pg-match { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--ai); border-radius: 10px; padding: 8px 12px; margin-bottom: 6px; font-size: 14px; animation: fadein .3s ease both; }
+.pg-match button { background: none; border: none; color: var(--accent); font-weight: 700; padding: 0; margin-right: 8px; }
+.pg-end { margin: 0 0 12px; }
+.fade-in { animation: fadein .35s ease both; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* ---- free search hits, file -> tasks ---- */
+mark { background: var(--warn-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
+.hitwhy { display: block; font-size: 13px; color: var(--muted); }
+.hitwhy b { color: var(--text); }
+.scope { max-width: none; margin: 10px 0 0; }
+.nonehint { max-width: 640px; }
+button.filelink { font: .86em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); color: var(--accent); border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; text-align: left; word-break: break-word; }
+button.filelink:hover { border-color: var(--accent); }
+.filebox { margin-top: 12px; }
+.filepanel h3 { margin: 0 0 8px; font-size: 15px; overflow-wrap: anywhere; }
+.filetasks { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+button.tasklink { width: 100%; text-align: left; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; }
+button.tasklink:hover { border-color: var(--accent); }
+button.tasklink .t { flex-basis: 100%; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; font-size: 13px; }
+.filesearch { max-width: none; margin: 16px 0 0; }
+.filesearch summary { cursor: pointer; font-weight: 600; }
+.filesearch input { width: 100%; font: inherit; padding: 10px 14px; margin-top: 10px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text); }
+.filesearch input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.filerows { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 10px; }
+.filerows li { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; }
+.filerows li > code { flex-basis: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .spinner, .fade-in, .pg-match { animation: none !important; }
+  .pg-stages li[data-status="running"] .pg-ico::before { animation: none !important; content: "▶"; border: none; width: auto; height: auto; font-size: 13px; }
+  .pg-head .spinner { border-top-color: var(--ai); }
+}
+</style>
+</head>
+<body>
+<div class="banner" role="note" id="banner"></div>
+<div class="wrap">
+  <header class="top">
+    <div class="logo" aria-hidden="true">◈</div>
+    <div class="brand"><span id="title">taskrecap</span><small id="tagline"></small></div>
+    <div class="usage" id="usage" aria-live="polite"></div>
+    <button class="theme" id="theme" type="button"></button>
+  </header>
+  <main id="home" hidden>
+    <h1 id="home-title"></h1>
+    <p class="lead" id="home-lead"></p>
+    <div class="search">
+      <span aria-hidden="true">🔎</span>
+      <input id="q" type="search" autocomplete="off">
+    </div>
+    <div class="controls">
+      <div class="modes">
+        <span class="chip free" id="mode-free"></span>
+        <button class="cta ai ghost" id="ai-search" type="button" style="min-height:40px;padding:8px 16px;font-size:15px"></button>
+      </div>
+      <p class="note search-note" id="search-note" style="margin-top:12px"></p>
+    </div>
+    <p class="note scope" id="search-scope" role="status" hidden></p>
+    <details class="filesearch" id="filesearch">
+      <summary id="filesearch-title"></summary>
+      <input id="fq" type="search" autocomplete="off">
+      <div id="filelist" aria-live="polite"></div>
+    </details>
+    <div class="aibox" id="aibox" aria-live="polite"></div>
+    <div id="airesults" class="airesults"></div>
+    <div class="grid" id="grid" role="list" style="margin-top:24px"></div>
+    <div class="nonewrap" id="nonewrap" hidden>
+      <p class="empty" id="none"></p>
+      <div class="nonehint" id="none-extra" hidden>
+        <p class="note" id="none-hint"></p>
+        <button class="cta ai ghost" id="none-ai" type="button" style="min-height:40px;padding:8px 16px;font-size:15px"></button>
+      </div>
+    </div>
+  </main>
+  <main id="detail" hidden></main>
+  <p class="empty" id="loading"></p>
+</div>
+<div class="evoverlay" id="evidence" hidden>
+  <div class="evbackdrop" id="ev-backdrop"></div>
+  <aside class="evpanel" id="ev-panel" role="dialog" aria-modal="true" aria-labelledby="ev-title" tabindex="-1"></aside>
+</div>
+<script>
+"use strict";
+let S = {};            // UI strings (served by /api/strings: translate by adding web/strings.<lang>.json)
+let INFO = {};
+let TASKS = [];
+
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (s, vars) => String(s || "").replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] != null ? vars[k] : ""));
+const day = (ts) => (ts ? new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "");
+const usd = (n) => { const v = Number(n || 0); return "$" + (v > 0 && v < 0.01 ? v.toFixed(3) : v.toFixed(2)); };
+const fmtTokens = (n) => { const v = Number(n || 0); return v >= 1000 ? (v / 1000).toFixed(1) + "K" : String(v); };
+const cap1 = (t) => String(t || "").charAt(0).toUpperCase() + String(t || "").slice(1);
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) { const err = new Error(body.error || r.statusText); err.code = body.code; throw err; }
+  return body;
+}
+
+function applyStatic() {
+  $("title").textContent = INFO.title;
+  $("tagline").textContent = S.tagline;
+  $("banner").textContent = INFO.demo ? S.demo_banner : S.local_banner;
+  $("home-title").textContent = S.home_title;
+  $("home-lead").textContent = S.home_lead;
+  $("q").placeholder = S.search_placeholder;
+  $("q").setAttribute("aria-label", S.search_label);
+  $("theme").textContent = S.theme;
+  $("mode-free").textContent = S.mode_free + " · " + S.mode_free_hint;
+  $("mode-free").title = S.mode_free_hint;
+  $("ai-search").textContent = S.ai_search;
+  $("search-note").textContent = S.search_note;
+  $("filesearch-title").textContent = S.files_find_title;
+  $("fq").placeholder = S.files_find_placeholder;
+  $("fq").setAttribute("aria-label", S.files_find_label);
+  $("none-hint").textContent = S.search_none_hint;
+  $("none-ai").textContent = S.search_none_ai;
+}
+
+// ---------- AI usage counter (header) ----------
+async function refreshUsage() {
+  try {
+    const u = await api("/api/usage");
+    const s = u.session, t = u.total;
+    const line1 = s.tokens ? fmtTokens(s.tokens) + " " + S.tokens + " · " + usd(s.usd) : S.usage_none;
+    $("usage").innerHTML = `<span>${esc(S.usage_label)} (${esc(S.usage_session)}): ${esc(line1)}</span>` +
+      `<small>${esc(cap1(S.usage_total))}: ${esc(fmtTokens(t.tokens))} ${esc(S.tokens)} · ${esc(usd(t.usd))}</small>`;
+  } catch (e) { $("usage").textContent = ""; }
+}
+
+// ---------- home ----------
+function kindLabel(k) { return S["kind_" + k] || k; }
+
+function card(t, extra) {
+  extra = extra || {};
+  const sess = t.sessions + " " + (t.sessions === 1 ? S.session : S.sessions);
+  const dates = t.first_ts ? day(t.first_ts) + (day(t.last_ts) !== day(t.first_ts) ? " – " + day(t.last_ts) : "") : "";
+  const chips = t.projects.slice(0, 3).map((p) => `<span class="chip repo">${esc(p)}</span>`).join("") +
+    `<span class="chip">${esc(sess)}</span>` + (dates ? `<span class="chip">${esc(dates)}</span>` : "") +
+    (t.generatable ? (t.has_capsule ? `<span class="chip done">${esc(S.chip_capsule)}</span>` : `<span class="chip warn">${esc(S.chip_no_capsule)}</span>`) : "");
+  return `<button class="card" role="listitem" data-key="${esc(t.key)}" type="button">
+    <span class="t">${esc(kindLabel(t.kind))}</span>
+    <span class="k">${esc(t.key)}</span>
+    <span class="s">${esc(t.objective || t.snippet)}</span>
+    ${extra.reason ? `<span class="reason">✨ ${esc(extra.reason)}</span>` : ""}
+    ${extra.hit ? hitHtml(extra.hit) : ""}
+    <span class="meta">${chips}</span></button>`;
+}
+
+let HITS = null; // null = no query; otherwise Map(key -> hit), best match first, from the free, literal search
+let SCOPE = null; // what that search could look inside: {capsules, other_tasks}
+
+/** `text` with the [start, end) ranges wrapped in <mark> (everything escaped). */
+function highlighted(text, ranges) {
+  let out = "", at = 0;
+  for (const [a, b] of ranges || []) { out += esc(text.slice(at, a)) + "<mark>" + esc(text.slice(a, b)) + "</mark>"; at = b; }
+  return out + esc(text.slice(at));
+}
+
+/** WHY a task matched the free search: the section of its capsule and the highlighted words. */
+function hitHtml(h) {
+  if (h.where === "task") return `<span class="hitwhy">${esc(S.search_hit_task)}</span>`;
+  const tr = h.truncated || [false, false];
+  return `<span class="hitwhy"><b>${esc(fmt(S.search_found_in, { section: S[h.section] || h.section }))}</b></span>` +
+    `<span class="excerpt">${tr[0] ? "…" : ""}${highlighted(h.excerpt, h.highlights)}${tr[1] ? "…" : ""}</span>`;
+}
+
+function scopeText(c) {
+  if (!c) return "";
+  if (!c.capsules) return S.search_scope_none;
+  return c.other_tasks ? fmt(S.search_scope, { capsules: c.capsules, others: c.other_tasks }) : fmt(S.search_scope_all, { capsules: c.capsules });
+}
+
+function bindCards(root) {
+  root.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => { location.hash = "#/task/" + encodeURIComponent(b.dataset.key); }));
+}
+
+function renderHome() {
+  const byKey = new Map(TASKS.map((t) => [t.key, t]));
+  const list = HITS ? [...HITS.keys()].map((k) => byKey.get(k)).filter(Boolean) : TASKS; // hits are already best first
+  $("grid").innerHTML = list.map((t) => card(t, HITS ? { hit: HITS.get(t.key) } : null)).join("");
+  $("none").textContent = TASKS.length ? S.no_results : S.no_sessions;
+  $("nonewrap").hidden = list.length > 0;
+  $("none-extra").hidden = !(HITS && TASKS.length && !list.length); // free search found nothing: suggest ✨ (never run it for the user)
+  $("search-scope").textContent = HITS ? scopeText(SCOPE) : "";
+  $("search-scope").hidden = !HITS;
+  bindCards($("grid"));
+}
+
+let searchTimer = null;
+function onSearchInput() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async () => {
+    const q = $("q").value.trim();
+    if (!q) { HITS = null; SCOPE = null; renderHome(); return; }
+    try {
+      const r = await api("/api/search?q=" + encodeURIComponent(q));
+      if ($("q").value.trim() !== q) return; // a newer query is already running
+      HITS = new Map((r.hits || []).map((h) => [h.key, h]));
+      SCOPE = r.searched || null;
+    } catch (e) { HITS = null; SCOPE = null; }
+    renderHome();
+  }, 150);
+}
+
+// ---------- live progress for AI actions ----------
+const ICON = { pending: "○", done: "✓", skipped: "–", error: "✕", cancelled: "■" };
+const mmss = (ms) => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+
+/** The server sends a code + values; the sentence comes from the strings file (so it can be translated). */
+function eventText(ev) {
+  const tpl = S["ev_" + ev.code];
+  if (!tpl) return ev.code || "";
+  const v = Object.assign({}, ev.vars);
+  if (v.tokens != null) v.tokens = fmtTokens(v.tokens);
+  if (v.chars != null) v.chars = Number(v.chars).toLocaleString();
+  if (v.reason != null) v.reason = v.reason ? " " + v.reason + "." : "";
+  return fmt(tpl, v);
+}
+
+/** POST and read the NDJSON progress stream line by line. Rejects on HTTP errors; aborting `signal` stops the server-side work. */
+async function streamPost(path, body, signal, onEvent) {
+  const r = await fetch(path, { method: "POST", signal, headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" }, body: JSON.stringify(body) });
+  if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || r.statusText); }
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let buf = "";
+  const flush = (final) => {
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0 || (final && buf.trim())) {
+      const line = i >= 0 ? buf.slice(0, i) : buf;
+      buf = i >= 0 ? buf.slice(i + 1) : "";
+      if (line.trim()) onEvent(JSON.parse(line));
+    }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    flush(false);
+  }
+  flush(true);
+}
+
+/**
+ * Runs an AI action with a live panel: checklist of the real pipeline stages, activity log, elapsed time, running
+ * tokens/cost and a Cancel button that really stops the work on the server.
+ * o: {box, title, path, body, onMatch(ev, el), onDone(result), onEnd(), onRetry()}
+ */
+function runAiAction(o) {
+  const abort = new AbortController(), t0 = Date.now();
+  let over = false, cancelled = false, result = null, failure = null, usageNow = null, callsSeen = 0, writing = 0;
+  o.box.innerHTML = `<div class="panel ai progress fade-in" role="group">
+    <div class="pg-head"><span class="spinner" aria-hidden="true"></span><h2 class="pg-title"></h2><span class="pg-time" role="timer" aria-label="${esc(S.progress_elapsed)}">0:00</span></div>
+    <p class="pg-usage"></p>
+    <ol class="pg-stages"></ol>
+    <div class="pg-matches" hidden><h3>${esc(S.progress_matches)}</h3></div>
+    <details open><summary>${esc(S.progress_activity)}</summary><ul class="pg-log" role="log" aria-live="polite"></ul></details>
+    <p class="sr pg-say" aria-live="polite"></p>
+    <div class="pg-end"></div>
+    <div class="row"><button class="cta ghost pg-cancel" type="button">${esc(S.progress_cancel)}</button></div></div>`;
+  const q = (sel) => o.box.querySelector(sel);
+  q(".pg-title").textContent = o.title;
+  q(".pg-usage").textContent = S.progress_starting;
+  const timer = setInterval(() => { q(".pg-time").textContent = mmss(Date.now() - t0); }, 1000);
+
+  const say = (t) => { q(".pg-say").textContent = t; };
+  const label = (id) => S["stage_" + id] || id;
+  const addLog = (text, level) => {
+    const li = document.createElement("li"), tm = document.createElement("time");
+    if (level === "warn") li.className = "warn";
+    tm.textContent = mmss(Date.now() - t0);
+    li.append(tm, document.createTextNode(text));
+    const ul = q(".pg-log"); ul.append(li); ul.scrollTop = ul.scrollHeight;
+  };
+  const showUsage = () => {
+    const parts = [usageNow && usageNow.calls ? fmt(S.progress_usage, { tokens: fmtTokens(usageNow.tokens), usd: "~" + usd(usageNow.cost_usd) }) : S.progress_usage_none];
+    if (writing) parts.push(fmt(S.progress_writing, { tokens: fmtTokens(writing) }));
+    q(".pg-usage").textContent = parts.join(" · ");
+  };
+  const buildStages = (ids) => {
+    q(".pg-stages").innerHTML = ids.map((id) => `<li data-id="${esc(id)}" data-status="pending"><span class="pg-ico" aria-hidden="true">${ICON.pending}</span><span class="pg-label">${esc(label(id))}</span><span class="sr pg-st">${esc(S.st_pending)}</span><span class="pg-detail"></span></li>`).join("");
+  };
+  const setStage = (id, status, detail) => {
+    const li = q(`.pg-stages [data-id="${id}"]`);
+    if (!li) return;
+    li.dataset.status = status;
+    li.querySelector(".pg-ico").textContent = ICON[status] || "";
+    li.querySelector(".pg-st").textContent = S["st_" + status] || status;
+    if (detail) li.querySelector(".pg-detail").textContent = detail;
+    say(label(id) + " — " + (detail || S["st_" + status] || status));
+  };
+  const stop = () => { over = true; clearInterval(timer); q(".pg-head").classList.add("ended"); q(".pg-cancel").hidden = true; };
+  const showEnd = (html, withRetry) => {
+    q(".pg-end").innerHTML = html + `<div class="row" style="margin-top:12px">${withRetry ? `<button class="cta ai pg-retry" type="button">${esc(S.progress_retry)}</button>` : ""}<button class="cta ghost pg-close" type="button">${esc(S.progress_close)}</button></div>`;
+    q(".pg-close").addEventListener("click", () => { o.box.innerHTML = ""; o.onEnd(); });
+    const retry = q(".pg-retry");
+    if (retry) retry.addEventListener("click", () => { o.box.innerHTML = ""; o.onEnd(); o.onRetry(); });
+  };
+
+  function onEvent(ev) {
+    if (ev.usage) {
+      usageNow = ev.usage;
+      if (ev.usage.calls > callsSeen) { callsSeen = ev.usage.calls; refreshUsage(); } // header counter follows each finished call
+    }
+    if (ev.type === "start") buildStages(ev.stages || []);
+    else if (ev.type === "stage") {
+      const text = ev.code ? eventText(ev) : "";
+      setStage(ev.id, ev.status, text);
+      if (text) addLog(text);
+      if (ev.status !== "running") writing = 0;
+    } else if (ev.type === "log") addLog(eventText(ev), ev.level);
+    else if (ev.type === "progress") writing = ev.approx_tokens || 0;
+    else if (ev.type === "match" && o.onMatch) { const el = q(".pg-matches"); el.hidden = false; o.onMatch(ev, el); }
+    else if (ev.type === "done") result = ev.result;
+    else if (ev.type === "error") failure = ev.message;
+    showUsage();
+  }
+
+  q(".pg-cancel").addEventListener("click", () => {
+    if (over) return;
+    cancelled = true;
+    q(".pg-cancel").disabled = true;
+    q(".pg-cancel").textContent = S.progress_cancelling;
+    abort.abort(); // closing the connection makes the server kill the claude processes and save nothing
+    stop();
+    o.box.querySelectorAll('.pg-stages [data-status="running"]').forEach((li) => setStage(li.dataset.id, "cancelled"));
+    showEnd(`<p class="note" role="status">${esc(S.progress_cancelled)}</p>`, true);
+    setTimeout(refreshUsage, 600);
+  });
+
+  (async () => {
+    try {
+      await streamPost(o.path, o.body, abort.signal, onEvent);
+      if (failure) throw new Error(failure);
+      if (result == null) throw new Error("The connection closed before the result arrived.");
+      stop();
+      await o.onDone(result);
+      o.onEnd();
+    } catch (err) {
+      if (cancelled) return;
+      stop();
+      o.box.querySelectorAll('.pg-stages [data-status="running"]').forEach((li) => setStage(li.dataset.id, "error"));
+      showEnd(`<p class="err" role="alert">${esc(S.progress_failed)} ${esc(err.message)}</p>`, true);
+      refreshUsage();
+    }
+  })();
+}
+
+// ---------- AI search (uses tokens: estimate first, confirm, then show real usage) ----------
+function renderAiResults(res) {
+  const byKey = new Map(TASKS.map((t) => [t.key, t]));
+  const items = res.matches.map((m) => ({ t: byKey.get(m.key) || m.task, reason: m.reason })).filter((x) => x.t);
+  $("airesults").classList.add("fade-in");
+  $("airesults").innerHTML = `<h2>${esc(fmt(S.ai_results_title, { query: res.query }))}</h2>` +
+    `<p class="t" style="margin:0 0 12px">${esc(fmt(S.ai_results_usage, { tokens: fmtTokens(res.usage.tokens), usd: "~" + usd(res.usage.cost_usd) }))} ` +
+    `<button class="back" id="ai-clear" type="button" style="padding:0">${esc(S.ai_clear)}</button></p>` +
+    (items.length ? `<div class="grid">${items.map((x) => card(x.t, { reason: x.reason })).join("")}</div>` : `<p class="empty">${esc(S.ai_no_matches)}</p>`);
+  bindCards($("airesults"));
+  $("ai-clear").addEventListener("click", () => { $("airesults").innerHTML = ""; });
+}
+
+async function startAiSearch() {
+  const q = $("q").value.trim(), box = $("aibox");
+  if (!q) { box.innerHTML = `<p class="err">${esc(S.ai_search_empty)}</p>`; return; }
+  $("ai-search").disabled = true;
+  box.innerHTML = `<p>${esc(S.estimate_loading)}</p>`;
+  try {
+    const e = await api("/api/ai-search/estimate?q=" + encodeURIComponent(q));
+    box.innerHTML = `<div class="panel ai"><h2><span class="chip ai">${esc(S.ai_badge)}</span></h2>
+      <p class="hint">${esc(fmt(S.ai_estimate_text, { tokens: fmtTokens(e.input_tokens + e.output_tokens), usd: "~" + usd(e.usd), tasks: e.tasks }))}</p>
+      <div class="row"><button class="cta ai" id="ai-ok" type="button">${esc(S.confirm_generate)}</button><button class="cta ghost" id="ai-no" type="button">${esc(S.cancel)}</button></div></div>`;
+    $("ai-no").addEventListener("click", () => { box.innerHTML = ""; $("ai-search").disabled = false; });
+    $("ai-ok").addEventListener("click", () => {
+      runAiAction({
+        box, path: "/api/ai-search", body: { query: q, confirm: true }, title: fmt(S.progress_searching, { query: q }),
+        onMatch: (ev, el) => {
+          const t = TASKS.find((x) => x.key === ev.key), row = document.createElement("div"), open = document.createElement("button");
+          row.className = "pg-match";
+          open.type = "button"; open.textContent = ev.key;
+          open.addEventListener("click", () => { location.hash = "#/task/" + encodeURIComponent(ev.key); });
+          row.append(open, document.createTextNode(ev.reason || (t ? t.snippet : "")));
+          el.append(row);
+        },
+        onDone: (res) => { box.innerHTML = ""; renderAiResults(res); refreshUsage(); },
+        onEnd: () => { $("ai-search").disabled = false; },
+        onRetry: startAiSearch,
+      });
+    });
+  } catch (err) { box.innerHTML = `<p class="err">${esc(S.error_prefix)} ${esc(err.message)}</p>`; $("ai-search").disabled = false; }
+}
+
+// ---------- files -> tasks (free, local) ----------
+const gotoTask = (root) => root.querySelectorAll("button.tasklink").forEach((b) => b.addEventListener("click", () => { location.hash = "#/task/" + encodeURIComponent(b.dataset.key); }));
+const statusLabel = (st) => S["files_status_" + st] || st;
+const clip = (t, n) => (String(t || "").length > n ? String(t).slice(0, n) + "…" : String(t || ""));
+
+/** Accurate (from a capsule) or approximate (from raw sessions), with how it was derived on hover. */
+function linkBadge(l) {
+  return l.approximate
+    ? `<span class="chip warn" title="${esc(S["files_basis_" + l.basis] || "")}">${esc(S.files_badge_approx)}</span>`
+    : `<span class="chip done" title="${esc(S.files_basis_capsule)}">${esc(S.files_badge_capsule)}</span>`;
+}
+
+function taskRow(l) {
+  return `<li><button class="tasklink" type="button" data-key="${esc(l.key)}"><strong>${esc(l.key)}</strong>` +
+    `<span class="chip">${esc(statusLabel(l.status))}</span>${l.edits ? `<span class="chip">${esc(l.edits)}×</span>` : ""}${linkBadge(l)}` +
+    `<span class="t">${esc(clip(l.text, 140))}</span></button></li>`;
+}
+
+async function showFileTasks(file, key) {
+  const box = $("filebox");
+  box.innerHTML = `<p class="note">${esc(S.files_loading)}</p>`;
+  try {
+    const r = await api("/api/files/tasks?path=" + encodeURIComponent(file));
+    const others = r.tasks.filter((t) => t.key !== key);
+    box.innerHTML = `<div class="panel filepanel fade-in" role="region" aria-label="${esc(fmt(S.files_other_title, { file }))}"><h3>${esc(fmt(S.files_other_title, { file }))}</h3>` +
+      (others.length ? `<ul class="filetasks">${others.map(taskRow).join("")}</ul>` : `<p>${esc(S.files_none_other)}</p>`) +
+      `<p class="note">${esc(S.files_incomplete_note)}</p></div>`;
+    gotoTask(box);
+  } catch (err) { box.innerHTML = `<p class="err">${esc(S.error_prefix)} ${esc(err.message)}</p>`; }
+}
+
+let filesTimer = null;
+async function loadFiles() {
+  const q = $("fq").value.trim(), box = $("filelist");
+  try {
+    const r = await api("/api/files?q=" + encodeURIComponent(q));
+    if ($("fq").value.trim() !== q) return; // a newer query is already running
+    const head = q ? fmt(S.files_find_results, { shown: r.files.length, total: r.total }) : S.files_find_top;
+    box.innerHTML = r.files.length
+      ? `<p class="note" style="margin:10px 0 0">${esc(head)}</p><ul class="filerows">${r.files.map((f) => `<li><code>${esc(f.path)}</code>` +
+          f.tasks.map((t) => `<button class="tasklink inline" type="button" data-key="${esc(t.key)}" title="${esc(statusLabel(t.status))}">${esc(t.key)}${t.approximate ? " ~" : ""}</button>`).join("") + `</li>`).join("")}</ul>` +
+        `<p class="note">${esc(S.files_incomplete_note)}</p>`
+      : `<p class="note" style="margin:10px 0 0">${esc(S.files_find_none)}</p>`;
+    gotoTask(box);
+  } catch (err) { box.innerHTML = `<p class="err">${esc(S.error_prefix)} ${esc(err.message)}</p>`; }
+}
+
+// ---------- detail ----------
+let CAP_KEY = ""; // the capsule being rendered: lets the evidence panel check a citation against it
+const cites = (cs) => (cs && cs.length ? ` <span class="cites">${cs.map((c) => `<button class="cite" type="button" data-session="${esc(c.session)}" data-turn="${esc(c.turn)}" data-key="${esc(CAP_KEY)}" title="${esc(S.evidence_open_hint)}" aria-label="${esc(fmt(S.evidence_open_label, { session: c.session, turn: c.turn }))}">${esc(c.session)}:${esc(c.turn)}</button>`).join(" ")}</span>` : "");
+const list = (items, render, cls) => (items && items.length ? `<ul class="items ${cls || ""}">${items.map((i) => `<li>${render(i)}</li>`).join("")}</ul>` : `<p>${esc(S.none)}</p>`);
+const commitLi = (c) => `<code>${esc(c.hash)}</code> <code>${esc(c.branch)}</code> ${esc(c.msg)}` + (c.pushed ? ` <span class="chip active">${esc(S.pushed)}</span>` : "") + (c.undone ? ` <span class="chip warn">${esc(S.undone)}</span>` : "");
+
+function capsuleHtml(res) {
+  CAP_KEY = res.key || "";
+  const c = res.capsule || {};
+  const files = res.files || [], fin = files.filter((f) => f.status === "final"), rev = files.filter((f) => f.status === "reverted");
+  const cm = res.commits || { confirmed: [], possible: [] };
+  const tl = (c.timeline || []).length ? `<div class="tablewrap"><table class="tl2"><thead><tr><th>${esc(S.date)}</th><th>${esc(S.repo)}</th><th>${esc(S.result)}</th><th>${esc(S.evidence)}</th></tr></thead><tbody>` +
+    c.timeline.map((t) => `<tr><td>${esc(t.date)}</td><td>${esc(t.repo)}</td><td>${esc(t.result)}</td><td>${cites(t.cites)}</td></tr>`).join("") + `</tbody></table></div>` : `<p>${esc(S.none)}</p>`;
+  const dec = (c.decisions || []).length ? c.decisions.map((d) => `<div class="decision"><strong>${esc(d.decision)}${d.uncertain ? ` <span class="chip warn">${esc(S.uncertain)}</span>` : ""}</strong><span>${esc(d.why || S.no_reason)}${cites(d.cites)}</span></div>`).join("") : `<p>${esc(S.none)}</p>`;
+  const fileBtn = (f) => `<button class="filelink" type="button" data-file="${esc(f.short)}">${esc(f.short)}</button>`;
+  const filesHtml = `<p class="note" style="margin-top:0">${esc(S.files_hint)}</p>` +
+    `<details open><summary>${esc(S.files_final)} (${fin.length})</summary>${list(fin, (f) => `${fileBtn(f)} (${esc(f.edits)}×)`)}</details>` +
+    (rev.length ? `<details><summary>${esc(S.files_reverted)} (${rev.length})</summary>${list(rev, fileBtn)}</details>` : "") +
+    `<div class="filebox" id="filebox" aria-live="polite"></div>`;
+  const commitsHtml = (cm.confirmed.length ? list(cm.confirmed, commitLi) : `<p>${esc(S.none)}</p>`) +
+    (cm.possible.length ? `<details><summary>${esc(S.commits_possible)} (${cm.possible.length})</summary>${list(cm.possible, commitLi)}</details>` : "");
+  const sec = (title, body) => `<section class="block"><h2>${esc(title)}</h2>${body}</section>`;
+  return sec(S.timeline, tl) + sec(S.decisions, dec) + sec(S.files, filesHtml) + sec(S.commits, commitsHtml) +
+    sec(S.dead_ends, `<div class="plain">${list(c.dead_ends, (i) => esc(i.text) + cites(i.cites), "dead")}</div>`) +
+    sec(S.left_out, `<div class="plain">${list(c.left_out, (i) => esc(i.text) + cites(i.cites))}</div>`) +
+    sec(S.pending, `<div class="plain">${list(c.pending, (i) => esc(i.text) + cites(i.cites), "todo")}</div>`) +
+    sec(S.briefing, `<div class="briefing" id="briefing">${esc(c.briefing || "")}</div>`);
+}
+
+function genPanelHtml(d, hasCap) {
+  const can = d.task && d.task.generatable;
+  if (!can) return `<div class="note">${esc(S.unassigned_hint)}</div>`;
+  const title = hasCap ? "" : `<h2>${esc(S.no_capsule_title)}</h2><p>${esc(S.no_capsule_text)}</p>`;
+  if (hasCap) return `<div class="genslim"><span class="chip ai">${esc(S.ai_badge)}</span><button class="cta ai ghost sm" id="gen" type="button">${esc(S.regenerate)}</button><span class="hint">${esc(S.regenerate_hint)}</span></div><div id="genbox" aria-live="polite"></div>`;
+  return `<div class="panel gen ai"><p style="margin:0 0 8px"><span class="chip ai">${esc(S.ai_badge)}</span></p>${title}<div class="row"><button class="cta ai" id="gen" type="button">${esc(S.generate)}</button></div><div id="genbox" aria-live="polite"></div></div>`;
+}
+
+async function renderDetail(key, { animate = false } = {}) {
+  const el = $("detail");
+  el.innerHTML = `<p class="empty">${esc(S.loading)}</p>`;
+  let d;
+  try { d = await api("/api/tasks/" + encodeURIComponent(key)); } catch (e) { el.innerHTML = `<p class="err">${esc(S.error_prefix)} ${esc(e.message)}</p>`; return; }
+  const cap = d.capsule, t = d.task || { key, kind: "key", generatable: true, projects: [], snippet: "" };
+  const objective = cap ? (cap.capsule || {}).objective : (d.sessions[0] || {}).snippet;
+  el.innerHTML = `<button class="back" id="back" type="button">${esc(S.back)}</button>
+    <div class="hero"><div><span class="chip repo">${esc(kindLabel(t.kind))}</span><h1>${esc(key)}</h1><p class="t">${esc(objective || "")}</p>
+      ${cap && cap.generated_at ? `<p class="t" style="font-size:13px">${esc(fmt(S.generated_at, { date: day(cap.generated_at) }))}</p>` : ""}</div>
+      ${cap ? `<button class="cta" id="resume" type="button">${esc(S.resume)}</button>` : ""}</div>
+    ${genPanelHtml(d, !!cap)}
+    ${cap ? capsuleHtml(cap) : ""}
+    <section class="block"><h2>${esc(S.sessions_heading)} (${d.sessions.length})</h2><div class="plain">${d.sessions.map((s) => `<div class="sess"><code>${esc(s.id.slice(0, 8))}</code><span class="chip repo">${esc(s.project)}</span><span>${esc(day(s.first_ts))}</span><span class="t">${esc(s.snippet)}</span></div>`).join("")}</div></section>`;
+  if (animate) { el.classList.remove("fade-in"); void el.offsetWidth; el.classList.add("fade-in"); }
+  $("back").addEventListener("click", () => { location.hash = ""; });
+  const resume = $("resume");
+  if (resume) resume.addEventListener("click", () => copyBriefing(resume, (cap.capsule || {}).briefing || ""));
+  const gen = $("gen");
+  if (gen) gen.addEventListener("click", () => startGenerate(key));
+  el.querySelectorAll(".filelink").forEach((b) => b.addEventListener("click", () => showFileTasks(b.dataset.file, key)));
+}
+
+async function copyBriefing(btn, text) {
+  const old = btn.textContent;
+  try { await navigator.clipboard.writeText(text); btn.textContent = S.copied; btn.classList.add("ok"); }
+  catch (e) { btn.textContent = S.copy_failed; const b = $("briefing"); if (b) { const r = document.createRange(); r.selectNodeContents(b); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } }
+  setTimeout(() => { btn.textContent = old; btn.classList.remove("ok"); }, 2600);
+}
+
+async function startGenerate(key) {
+  const box = $("genbox"), gen = $("gen");
+  gen.disabled = true;
+  box.innerHTML = `<p>${esc(S.estimate_loading)}</p>`;
+  try {
+    const e = await api("/api/estimate?key=" + encodeURIComponent(key));
+    box.innerHTML = `<p style="margin-top:12px">${esc(fmt(S.estimate_text, { tokens: fmtTokens(e.input_tokens + e.output_tokens), usd: "~" + usd(e.usd), seconds: e.seconds, calls: e.calls, sessions: e.sessions }))}</p>
+      <div class="row"><button class="cta ai" id="ok" type="button">${esc(S.confirm_generate)}</button><button class="cta ghost" id="no" type="button">${esc(S.cancel)}</button></div>`;
+    $("no").addEventListener("click", () => { box.innerHTML = ""; gen.disabled = false; });
+    $("ok").addEventListener("click", () => {
+      runAiAction({
+        box, path: "/api/generate", body: { key, confirm: true }, title: fmt(S.progress_generating, { key }),
+        onDone: async (res) => {
+          if (location.hash === "#/task/" + encodeURIComponent(key)) { // still looking at this task: show the new capsule
+            await renderDetail(key, { animate: true });
+            const b = $("genbox");
+            if (b) b.innerHTML = `<p class="okmsg" role="status">${esc(fmt(S.progress_done_generate, { tokens: fmtTokens((res.info || {}).tokens), usd: usd((res.info || {}).cost_usd) }))}</p>`;
+          }
+          TASKS = (await api("/api/tasks")).tasks;
+          refreshUsage();
+        },
+        onEnd: () => { const g = $("gen"); if (g) g.disabled = false; },
+        onRetry: () => startGenerate(key),
+      });
+    });
+  } catch (err) { box.innerHTML = `<p class="err">${esc(S.error_prefix)} ${esc(err.message)}</p>`; gen.disabled = false; }
+}
+
+// ---------- evidence panel: the original messages behind a citation (free, local) ----------
+let evOpener = null, evSeq = 0;
+const evTime = (ts) => (ts ? new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+
+function evTurnHtml(t) {
+  const user = t.user ? `<p class="evtext">${esc(t.user)}</p>` : `<p class="evtext muted">${esc(S.evidence_automatic)}</p>`;
+  const reply = t.assistant ? `<span class="evrole">${esc(S.evidence_claude)}</span><p class="evtext">${esc(t.assistant)}</p>` : "";
+  const cut = t.truncated && (t.truncated.user || t.truncated.assistant) ? `<p class="evextra">${esc(S.evidence_truncated)}</p>` : "";
+  const files = (t.files || []).length ? `<div class="evextra">${esc(S.evidence_files)} ${t.files.map((f) => `<code>${esc(f)}</code>`).join("")}</div>` : "";
+  const cmds = (t.commands || []).length ? `<div class="evextra">${esc(S.evidence_commands)} ${t.commands.map((c) => `<code>${esc(c)}</code>`).join("")}</div>` : "";
+  return `<article class="evturn ${t.cited ? "cited" : "dim"}" data-cited="${t.cited ? "1" : "0"}"><h3>${esc(fmt(S.evidence_message, { n: t.turn }))}${t.ts ? " · " + esc(evTime(t.ts)) : ""}${t.cited ? " · " + esc(S.evidence_cited) : ""}</h3>` +
+    `<span class="evrole">${esc(S.evidence_you)}</span>${user}${reply}${files}${cmds}${cut}</article>`;
+}
+
+function evPanelHtml(r) {
+  const s = r.session;
+  const meta = [[S.evidence_date, day(s.date)], [S.evidence_repo, s.project], [S.evidence_branch, s.branch], [S.evidence_folder, s.cwd], [S.evidence_total, s.turns_total]]
+    .filter(([, v]) => v !== "" && v != null).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+  return `<div class="evhead"><h2 id="ev-title">${esc(fmt(S.evidence_title, { session: s.id8, n: r.turn }))}</h2><button class="cta ghost" id="ev-close" type="button">${esc(S.evidence_close)}</button></div>` +
+    (r.warning ? `<p class="evwarn" role="alert">${esc(S.evidence_unverified)}</p>` : "") +
+    `<dl class="evmeta">${meta}</dl>` +
+    (s.resume ? `<div class="evresume"><code id="ev-resume">${esc(s.resume)}</code><button class="cta" id="ev-copy" type="button">${esc(S.evidence_copy_resume)}</button></div><p class="note" style="margin:0 0 6px">${esc(S.evidence_resume_hint)}</p>` : "") +
+    `<p class="note" style="margin:14px 0 0">${esc(S.evidence_context)}</p>` + r.turns.map(evTurnHtml).join("");
+}
+
+function evCloseHandlers() {
+  $("ev-close").addEventListener("click", closeEvidence);
+  const copy = $("ev-copy");
+  if (copy) copy.addEventListener("click", async () => {
+    const old = copy.textContent;
+    try { await navigator.clipboard.writeText($("ev-resume").textContent); copy.textContent = S.evidence_copied; }
+    catch (e) { copy.textContent = S.copy_failed; const r = document.createRange(); r.selectNodeContents($("ev-resume")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+    setTimeout(() => { copy.textContent = old; }, 2400);
+  });
+}
+
+async function openEvidence(btn) {
+  const seq = ++evSeq, panel = $("ev-panel");
+  evOpener = btn;
+  $("evidence").hidden = false;
+  document.documentElement.style.setProperty("--banner-h", $("banner").offsetHeight + "px");
+  document.body.classList.add("evopen");
+  panel.innerHTML = `<div class="evhead"><h2 id="ev-title">${esc(S.evidence_loading)}</h2><button class="cta ghost" id="ev-close" type="button">${esc(S.evidence_close)}</button></div>`;
+  evCloseHandlers();
+  panel.focus();
+  const q = new URLSearchParams({ session: btn.dataset.session, turn: btn.dataset.turn, context: "2" });
+  if (btn.dataset.key) q.set("key", btn.dataset.key);
+  try {
+    const r = await api("/api/evidence?" + q);
+    if (seq !== evSeq) return; // a newer click is already showing
+    panel.innerHTML = evPanelHtml(r);
+    evCloseHandlers();
+    const cited = panel.querySelector('.evturn[data-cited="1"]');
+    if (cited) cited.scrollIntoView({ block: "center" });
+    $("ev-close").focus();
+  } catch (err) {
+    if (seq !== evSeq) return;
+    panel.innerHTML = `<div class="evhead"><h2 id="ev-title">${esc(fmt(S.evidence_title, { session: btn.dataset.session, n: btn.dataset.turn }))}</h2><button class="cta ghost" id="ev-close" type="button">${esc(S.evidence_close)}</button></div>` +
+      `<p class="err" role="alert">${esc(err.message)}</p><p class="note">${esc(S.evidence_error_hint)}</p>`;
+    evCloseHandlers();
+    $("ev-close").focus();
+  }
+}
+
+function closeEvidence() {
+  evSeq += 1; // ignore any answer still on its way
+  $("evidence").hidden = true;
+  document.body.classList.remove("evopen");
+  if (evOpener && document.contains(evOpener)) evOpener.focus();
+  evOpener = null;
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("button.cite");
+  if (b) openEvidence(b);
+});
+$("ev-backdrop").addEventListener("click", closeEvidence);
+document.addEventListener("keydown", (e) => {
+  if ($("evidence").hidden) return;
+  if (e.key === "Escape") { e.preventDefault(); closeEvidence(); return; }
+  if (e.key !== "Tab") return; // keep keyboard focus inside the open panel
+  const items = [...$("ev-panel").querySelectorAll("button, [href], input, [tabindex]:not([tabindex='-1'])")];
+  if (!items.length) { e.preventDefault(); return; }
+  const first = items[0], last = items[items.length - 1];
+  if (e.shiftKey && (document.activeElement === first || document.activeElement === $("ev-panel"))) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
+// ---------- routing + boot ----------
+function route() {
+  const m = location.hash.match(/^#\/task\/(.+)$/);
+  $("home").hidden = !!m;
+  $("detail").hidden = !m;
+  if (m) { renderDetail(decodeURIComponent(m[1])); window.scrollTo(0, 0); } else { renderHome(); }
+}
+
+(function theme() {
+  let t = null;
+  try { t = localStorage.getItem("wc-theme"); } catch (e) {}
+  if (t) document.documentElement.dataset.theme = t;
+  $("theme").addEventListener("click", () => {
+    const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    const next = dark ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("wc-theme", next); } catch (e) {}
+  });
+})();
+
+(async function boot() {
+  try {
+    [INFO, S] = await Promise.all([api("/api/info"), api("/api/strings")]);
+    applyStatic();
+    $("loading").textContent = S.loading;
+    TASKS = (await api("/api/tasks")).tasks;
+    $("loading").hidden = true;
+    $("q").addEventListener("input", onSearchInput);
+    $("ai-search").addEventListener("click", startAiSearch);
+    $("none-ai").addEventListener("click", startAiSearch); // only asks for an estimate and a confirmation: nothing is spent yet
+    $("fq").addEventListener("input", () => { clearTimeout(filesTimer); filesTimer = setTimeout(loadFiles, 150); });
+    $("filesearch").addEventListener("toggle", () => { if ($("filesearch").open) loadFiles(); });
+    refreshUsage();
+    window.addEventListener("hashchange", route);
+    route();
+  } catch (e) { $("loading").textContent = e.message; }
+})();
+</script>
+</body>
+</html>

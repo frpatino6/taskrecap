@@ -1,0 +1,12 @@
+node_modules/
+*.log
+.DS_Store
+npm-debug.log*
+*.tgz
+# generated capsules, caches and usage counters (may contain content from your sessions: never commit them)
+.taskrecap/
+capsules_auto/
+*.cache.json
+# a real screenshot is added by the maintainer after checking it shows no private data
+# maintainer-only screenshot tooling: its own node_modules and Chromium never ship (see tools/screenshots)
+tools/screenshots/node_modules/

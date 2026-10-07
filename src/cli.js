@@ -1,0 +1,186 @@
+// Command line: `taskrecap` (dashboard) | `ui` | `list` | `generate <KEY>`.
+import fs from 'node:fs';
+import path from 'node:path';
+import readline from 'node:readline';
+import { parseArgs } from 'node:util';
+import { App, DEMO_DIR, UserError } from './app.js';
+import * as config from './config.js';
+import { LLMUnavailable } from './llm.js';
+import { toRegex } from './sessions.js';
+import { openBrowser, startServer } from './server.js';
+
+const HELP = `${config.APP_TITLE} ${config.VERSION}
+One living record per task, built from your Claude Code sessions.
+
+Usage:
+  taskrecap [ui] [options]       open the local dashboard (default)
+  taskrecap list [options]       list the tasks found in your sessions
+  taskrecap generate <KEY>       write the capsule of one task (asks before spending tokens)
+
+Options:
+  --demo                use the built-in fictional sessions instead of yours
+  --port <n>            port for the dashboard (default 8765; the next free one is used if busy)
+  --projects-dir <dir>  where Claude Code stores sessions (default ~/.claude/projects)
+  --key-regex <regex>   regex that matches a task key (default: Jira-style, e.g. ABC-123)
+  --no-open             do not open the browser
+  --lang <code>         UI language (a web/strings.<code>.json file; default en)
+  --json                (list) print JSON
+  -y, --yes             (generate) skip the cost confirmation
+  --votes <n>           (generate) range-selection votes: 3 = stable, 1 = cheaper
+  --model <name>        (generate) Claude model alias (default sonnet)
+  --out <file>          (generate) also copy the markdown here
+  -v, --version         print the version
+  -h, --help            print this help
+
+Normal mode is free and local. Only the actions marked "AI" (generate a capsule, search by meaning)
+call Claude, and they always show an estimate first.`;
+
+const OPTIONS = {
+  demo: { type: 'boolean' },
+  port: { type: 'string' },
+  'projects-dir': { type: 'string' },
+  'key-regex': { type: 'string' },
+  'no-open': { type: 'boolean' },
+  'no-browser': { type: 'boolean' },
+  lang: { type: 'string', default: 'en' },
+  json: { type: 'boolean' },
+  yes: { type: 'boolean', short: 'y' },
+  votes: { type: 'string', default: '3' },
+  model: { type: 'string', default: 'sonnet' },
+  out: { type: 'string' },
+  version: { type: 'boolean', short: 'v' },
+  help: { type: 'boolean', short: 'h' },
+};
+
+/** argv (without node and script) -> {cmd, key, opts}. Throws UserError on bad input. */
+export function parseCli(argv) {
+  let parsed;
+  try {
+    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
+  } catch (e) {
+    throw new UserError(e.message);
+  }
+  const [first, ...rest] = parsed.positionals;
+  const known = ['ui', 'list', 'generate', 'help'];
+  const cmd = first === undefined ? 'ui' : first;
+  if (!known.includes(cmd)) throw new UserError(`Unknown command "${cmd}". Run taskrecap --help.`);
+  const o = parsed.values;
+  const votes = Number.parseInt(o.votes, 10);
+  if (Number.isNaN(votes) || votes < 1 || votes > 9) throw new UserError('--votes must be a number from 1 to 9');
+  let port = 8765;
+  if (o.port !== undefined) {
+    port = Number.parseInt(o.port, 10);
+    if (Number.isNaN(port) || port < 0 || port > 65535) throw new UserError('--port must be a number from 0 to 65535');
+  }
+  const regex = config.keyRegex(o['key-regex']);
+  try {
+    toRegex(regex);
+  } catch {
+    throw new UserError(`Invalid --key-regex: ${regex}`);
+  }
+  return { cmd, key: rest[0], opts: { ...o, votes, port, noOpen: Boolean(o['no-open'] || o['no-browser']), regex } };
+}
+
+export function buildApp(opts) {
+  if (!process.env.TASKRECAP_HOME) config.migrateLegacyHome(); // an explicit TASKRECAP_HOME means 'use exactly this folder'
+  const home = config.homeDir();
+  const usageFile = path.join(home, 'usage.json');
+  if (opts.demo) {
+    const cache = path.join(home, 'demo-cache');
+    const sample = path.join(DEMO_DIR, 'capsules');
+    if (fs.existsSync(sample) && !fs.existsSync(cache)) fs.cpSync(sample, cache, { recursive: true }); // seed once: the sample capsules show instantly
+    return new App({
+      projectsDir: path.join(DEMO_DIR, 'sessions'), cacheDir: cache, keyRegex: opts.regex, lang: opts.lang,
+      demo: true, model: opts.model, votes: opts.votes, usageFile,
+    });
+  }
+  return new App({
+    projectsDir: config.projectsDir(opts['projects-dir']), cacheDir: path.join(home, 'capsules'), keyRegex: opts.regex,
+    lang: opts.lang, model: opts.model, votes: opts.votes, usageFile,
+  });
+}
+
+async function cmdUi(opts, out) {
+  const app = buildApp(opts);
+  if (!fs.existsSync(app.projectsDir)) {
+    out.err(`No sessions folder at ${app.projectsDir}. Use --projects-dir or try --demo.`);
+    return 1;
+  }
+  const { server, url } = await startServer(app, opts.port);
+  out.log(`taskrecap running at ${url}  (Ctrl+C to stop)`);
+  out.log('Normal mode is free and local. Actions marked "AI" show an estimate before using Claude.');
+  if (!opts.noOpen) openBrowser(url);
+  process.once('SIGINT', () => {
+    out.log('\nBye.');
+    server.close();
+    process.exit(0);
+  });
+  return null; // keep running
+}
+
+function cmdList(opts, out) {
+  const app = buildApp(opts);
+  const tasks = app.listTasks();
+  if (opts.json) {
+    out.log(JSON.stringify(tasks, null, 1));
+    return 0;
+  }
+  if (!tasks.length) {
+    out.log(`No sessions found in ${app.projectsDir}`);
+    return 0;
+  }
+  for (const t of tasks) {
+    const flag = t.has_capsule ? 'capsule' : '-';
+    out.log(`${t.key.slice(0, 28).padEnd(28)} ${t.kind.padEnd(10)} ${String(t.sessions).padStart(3)} sessions  ${(t.last_ts || '').slice(0, 10)}  ${flag}`);
+  }
+  return 0;
+}
+
+function ask(question) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => rl.question(question, (a) => { rl.close(); resolve(a); }));
+}
+
+async function cmdGenerate(key, opts, out) {
+  if (!key) throw new UserError('Usage: taskrecap generate <KEY>');
+  const app = buildApp(opts);
+  const est = app.estimate(key);
+  out.log(`Task ${key}: ${est.sessions} session(s), ${est.calls} Claude call(s), ~${Math.floor(est.input_tokens / 1000)}K input tokens, ` +
+    `estimated ~$${est.usd.toFixed(2)} and ~${est.seconds}s (rough estimate).`);
+  if (!opts.yes && !['y', 'yes'].includes((await ask('Run it with your Claude login? [y/N] ')).trim().toLowerCase())) {
+    out.log('Cancelled. Nothing was spent.');
+    return 0;
+  }
+  const result = await app.generate(key);
+  let file = app.store.filePath(key, 'md');
+  if (opts.out) {
+    fs.copyFileSync(file, opts.out);
+    file = opts.out;
+  }
+  out.log(`Done. Real cost: $${result.info.cost_usd.toFixed(3)} (${result.info.tokens} tokens). Capsule saved to ${file}`);
+  return 0;
+}
+
+/** Entry point. Returns an exit code, or null when a server keeps the process alive. */
+export async function main(argv = process.argv.slice(2), out = { log: console.log, err: console.error }) {
+  try {
+    if (argv.includes('--help') || argv.includes('-h') || argv[0] === 'help') {
+      out.log(HELP);
+      return 0;
+    }
+    if (argv.includes('--version') || argv.includes('-v')) {
+      out.log(`${config.APP_NAME} ${config.VERSION}`);
+      return 0;
+    }
+    const { cmd, key, opts } = parseCli(argv);
+    if (cmd === 'list') return cmdList(opts, out);
+    if (cmd === 'generate') return await cmdGenerate(key, opts, out);
+    return await cmdUi(opts, out);
+  } catch (e) {
+    if (e instanceof UserError || e instanceof LLMUnavailable) {
+      out.err(`Error: ${e.message}`);
+      return 1;
+    }
+    throw e;
+  }
+}

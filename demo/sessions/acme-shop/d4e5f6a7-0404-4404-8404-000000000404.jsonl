@@ -1,0 +1,2 @@
+{"type": "user", "timestamp": "2026-09-15T11:03:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-shop", "message": {"role": "user", "content": "Quick question: which node version does this repo target?"}}
+{"type": "assistant", "timestamp": "2026-09-15T11:04:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-shop", "message": {"role": "assistant", "content": [{"type": "text", "text": "The .nvmrc says 20.11."}]}}

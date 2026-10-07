@@ -1,0 +1,270 @@
+{
+ "key": "SHOP-101",
+ "capsule": {
+  "objective": "Find and fix why the checkout total is sometimes one cent higher than the cart total (SHOP-101), by replacing float arithmetic with integer cents in the cart module, and later extending the fix to gift cards.",
+  "timeline": [
+   {
+    "date": "09-07",
+    "repo": "acme-shop",
+    "result": "Diagnosed float summing (19.99*3 = 59.97000000000001) plus a second Math.round at checkout; added a reproducing test in total.test.js.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 0
+     }
+    ]
+   },
+   {
+    "date": "09-07",
+    "repo": "acme-shop",
+    "result": "First attempt rounded the badge in the UI (CartBadge.js); the user rejected it and it was reverted via git checkout.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 1
+     },
+     {
+      "session": "a1b2c3d4",
+      "turn": 2
+     }
+    ]
+   },
+   {
+    "date": "09-07",
+    "repo": "acme-shop",
+    "result": "Converted cart prices to integer cents in price.js and total.js, updated tests; all 14 cart tests passed.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 2
+     },
+     {
+      "session": "a1b2c3d4",
+      "turn": 3
+     }
+    ]
+   },
+   {
+    "date": "09-07",
+    "repo": "acme-shop",
+    "result": "Committed 3f9a2c1 'SHOP-101: use integer cents in cart totals' on fix/SHOP-101-checkout-rounding, not pushed, as requested.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 4
+     }
+    ]
+   },
+   {
+    "date": "09-08",
+    "repo": "acme-shop",
+    "result": "QA reported gift cards still showed a float total; giftcard.js moved to the same integer-cents helper and tests updated.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 5
+     }
+    ]
+   },
+   {
+    "date": "09-08",
+    "repo": "acme-shop",
+    "result": "Committed 7be4d90 'SHOP-101: gift cards use integer cents' and pushed fix/SHOP-101-checkout-rounding to origin, as the user asked.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 6
+     }
+    ]
+   }
+  ],
+  "decisions": [
+   {
+    "decision": "Keep the fix inside src/cart and do not touch the payment provider code.",
+    "why": "The user said the payment provider code belongs to another team.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 1
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Use integer cents everywhere in the cart instead of rounding in the UI.",
+    "why": "The user said UI rounding only hides the problem; floats must never be used in the cart.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 2
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Run only the cart module tests.",
+    "why": "The user asked for cart module tests only.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 3
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "First commit made without pushing.",
+    "why": "The user explicitly said not to push yet.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 4
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Gift cards reuse the same integer-cents helper rather than their own sum.",
+    "why": "Gift cards had their own float sum, which caused the QA-reported float total.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 5
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Commit and push the gift card change.",
+    "why": "The user explicitly asked to commit and push this time.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 6
+     }
+    ],
+    "uncertain": false
+   }
+  ],
+  "dead_ends": [
+   {
+    "text": "Rounding the displayed badge in the UI (src/ui/CartBadge.js) only masked the problem; it was rejected by the user and reverted with git checkout.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 1
+     },
+     {
+      "session": "a1b2c3d4",
+      "turn": 2
+     }
+    ]
+   }
+  ],
+  "left_out": [
+   {
+    "text": "The 'sale' coupon path is still untested and was left out of this branch.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 6
+     }
+    ]
+   },
+   {
+    "text": "Payment provider code was left untouched because it belongs to another team.",
+    "cites": [
+     {
+      "session": "a1b2c3d4",
+      "turn": 1
+     }
+    ]
+   }
+  ],
+  "pending": [
+   {
+    "text": "Add tests for the 'sale' coupon path, which is still untested.",
+    "cites": []
+   }
+  ],
+  "briefing": "Task SHOP-101 (repo acme-shop, branch fix/SHOP-101-checkout-rounding): the checkout total was sometimes one cent higher than the cart total because the cart summed prices as floats and checkout rounded again with Math.round. The fix converts cart prices to integer cents in src/cart/price.js and total.js, and gift cards (giftcard.js) now use the same helper; tests are in total.test.js (14 cart tests passed after the first fix). A UI-only rounding attempt in CartBadge.js was rejected and reverted. Two commits exist: 3f9a2c1 (cart totals, not pushed at the time) and 7be4d90 (gift cards), and the branch was pushed on 09-08 at the user's request. User rules: keep changes inside src/cart, do not touch the payment provider code (another team's), use integer cents and never floats in the cart, run only cart module tests, and commit or push only when asked. Remaining: the 'sale' coupon path is untested and was left out of the branch."
+ },
+ "files": [
+  {
+   "short": "acme-shop/src/cart/giftcard.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-08T05:24:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/cart/price.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-07T09:12:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/cart/total.js",
+   "edits": 2,
+   "status": "final",
+   "last": "2026-09-07T09:12:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/cart/total.test.js",
+   "edits": 3,
+   "status": "final",
+   "last": "2026-09-08T05:24:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/ui/CartBadge.js",
+   "edits": 1,
+   "status": "reverted",
+   "last": "2026-09-07T09:08:00.000Z"
+  }
+ ],
+ "commits": {
+  "confirmed": [
+   {
+    "hash": "3f9a2c1",
+    "branch": "fix/SHOP-101-checkout-rounding",
+    "msg": "SHOP-101: use integer cents in cart totals",
+    "source": "main",
+    "ts": "2026-09-07T09:20:00.000Z",
+    "pushed": false,
+    "undone": false
+   },
+   {
+    "hash": "7be4d90",
+    "branch": "fix/SHOP-101-checkout-rounding",
+    "msg": "SHOP-101: gift cards use integer cents",
+    "source": "main",
+    "ts": "2026-09-08T05:28:00.000Z",
+    "pushed": true,
+    "undone": false
+   }
+  ],
+  "possible": []
+ },
+ "sources": [
+  "`a1b2c3d4` (turns 0-6)"
+ ],
+ "info": {
+  "range_mode": {
+   "a1b2c3d4": "llm-vote3/3"
+  },
+  "dropped": {
+   "decisions": 0,
+   "dead_ends": 0,
+   "left_out": 0
+  },
+  "transcript_chars": 2584,
+  "capsule_call": {
+   "cost_usd": 0.029956,
+   "input_tokens": 3040,
+   "output_tokens": 1780
+  },
+  "llm_calls": 4,
+  "cost_usd": 0.0492
+ },
+ "markdown": "# Work capsule \u00b7 SHOP-101\n\n> Generated automatically from: `a1b2c3d4` (turns 0-6). Citations `session:turn` point to the evidence.\n\n## Objective\nFind and fix why the checkout total is sometimes one cent higher than the cart total (SHOP-101), by replacing float arithmetic with integer cents in the cart module, and later extending the fix to gift cards.\n\n## Timeline\n| Date | Repo | Result | Evidence |\n|---|---|---|---|\n| 09-07 | acme-shop | Diagnosed float summing (19.99*3 = 59.97000000000001) plus a second Math.round at checkout; added a reproducing test in total.test.js. | `a1b2c3d4:0` |\n| 09-07 | acme-shop | First attempt rounded the badge in the UI (CartBadge.js); the user rejected it and it was reverted via git checkout. | `a1b2c3d4:1` `a1b2c3d4:2` |\n| 09-07 | acme-shop | Converted cart prices to integer cents in price.js and total.js, updated tests; all 14 cart tests passed. | `a1b2c3d4:2` `a1b2c3d4:3` |\n| 09-07 | acme-shop | Committed 3f9a2c1 'SHOP-101: use integer cents in cart totals' on fix/SHOP-101-checkout-rounding, not pushed, as requested. | `a1b2c3d4:4` |\n| 09-08 | acme-shop | QA reported gift cards still showed a float total; giftcard.js moved to the same integer-cents helper and tests updated. | `a1b2c3d4:5` |\n| 09-08 | acme-shop | Committed 7be4d90 'SHOP-101: gift cards use integer cents' and pushed fix/SHOP-101-checkout-rounding to origin, as the user asked. | `a1b2c3d4:6` |\n\n## Decisions and why\n- **Keep the fix inside src/cart and do not touch the payment provider code.** \u2014 The user said the payment provider code belongs to another team. `a1b2c3d4:1`\n- **Use integer cents everywhere in the cart instead of rounding in the UI.** \u2014 The user said UI rounding only hides the problem; floats must never be used in the cart. `a1b2c3d4:2`\n- **Run only the cart module tests.** \u2014 The user asked for cart module tests only. `a1b2c3d4:3`\n- **First commit made without pushing.** \u2014 The user explicitly said not to push yet. `a1b2c3d4:4`\n- **Gift cards reuse the same integer-cents helper rather than their own sum.** \u2014 Gift cards had their own float sum, which caused the QA-reported float total. `a1b2c3d4:5`\n- **Commit and push the gift card change.** \u2014 The user explicitly asked to commit and push this time. `a1b2c3d4:6`\n\n## Files touched\n**Final**\n- `acme-shop/src/cart/giftcard.js` (1x)\n- `acme-shop/src/cart/price.js` (1x)\n- `acme-shop/src/cart/total.js` (2x)\n- `acme-shop/src/cart/total.test.js` (3x)\n\n**Reverted or discarded** (attempt that did not stay)\n- `acme-shop/src/ui/CartBadge.js` (1x)\n\n## Commits\n- `3f9a2c1` `fix/SHOP-101-checkout-rounding` \u00b7 SHOP-101: use integer cents in cart totals \u00b7 main\n- `7be4d90` `fix/SHOP-101-checkout-rounding` \u00b7 SHOP-101: gift cards use integer cents \u00b7 _pushed_ \u00b7 main\n\n## Dead ends\n- Rounding the displayed badge in the UI (src/ui/CartBadge.js) only masked the problem; it was rejected by the user and reverted with git checkout. `a1b2c3d4:1` `a1b2c3d4:2`\n\n## Left out\n- The 'sale' coupon path is still untested and was left out of this branch. `a1b2c3d4:6`\n- Payment provider code was left untouched because it belongs to another team. `a1b2c3d4:1`\n\n## Pending\n- Add tests for the 'sale' coupon path, which is still untested.\n\n## Briefing to resume\n> Task SHOP-101 (repo acme-shop, branch fix/SHOP-101-checkout-rounding): the checkout total was sometimes one cent higher than the cart total because the cart summed prices as floats and checkout rounded again with Math.round. The fix converts cart prices to integer cents in src/cart/price.js and total.js, and gift cards (giftcard.js) now use the same helper; tests are in total.test.js (14 cart tests passed after the first fix). A UI-only rounding attempt in CartBadge.js was rejected and reverted. Two commits exist: 3f9a2c1 (cart totals, not pushed at the time) and 7be4d90 (gift cards), and the branch was pushed on 09-08 at the user's request. User rules: keep changes inside src/cart, do not touch the payment provider code (another team's), use integer cents and never floats in the cart, run only cart module tests, and commit or push only when asked. Remaining: the 'sale' coupon path is untested and was left out of the branch.\n",
+ "generated_at": "2026-10-07T00:29:17+00:00"
+}

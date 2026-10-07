@@ -1,0 +1,223 @@
+{
+ "key": "SHOP-102",
+ "capsule": {
+  "objective": "Build a dark theme for the acme-shop storefront (SHOP-102): extract hard-coded colors into CSS variables, add a theme toggle that follows prefers-color-scheme, fix buy-button contrast for WCAG AA in dark mode, and keep the toggle behind a darkMode feature flag.",
+  "timeline": [
+   {
+    "date": "09-09",
+    "repo": "acme-shop",
+    "result": "Listed hard-coded colors in src/ui: 37 colors across 9 files, mostly in header.css and product-card.css.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 0
+     }
+    ]
+   },
+   {
+    "date": "09-09",
+    "repo": "acme-shop",
+    "result": "Created theme.css with --bg, --text, --accent variables and replaced literals in header.css and product-card.css, keeping light theme identical.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 1
+     }
+    ]
+   },
+   {
+    "date": "09-09",
+    "repo": "acme-shop",
+    "result": "Added ThemeToggle in header with prefers-color-scheme default; choice stored in localStorage.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 2
+     }
+    ]
+   },
+   {
+    "date": "09-09",
+    "repo": "acme-shop",
+    "result": "Changed dark accent to #7aa2ff (5.1:1 contrast on card background) to fix buy-button contrast for WCAG AA.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 3
+     }
+    ]
+   },
+   {
+    "date": "09-09",
+    "repo": "acme-shop",
+    "result": "Wrapped ThemeToggle in the darkMode feature flag, off by default (flags.js).",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 4
+     }
+    ]
+   },
+   {
+    "date": "09-09",
+    "repo": "acme-shop",
+    "result": "Committed a41c8e2 on feature/SHOP-102-dark-mode: 'SHOP-102: dark theme behind darkMode flag'.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 5
+     }
+    ]
+   }
+  ],
+  "decisions": [
+   {
+    "decision": "Move hard-coded colors into CSS variables in a new theme.css (--bg, --text, --accent).",
+    "why": "Prerequisite for a dark theme; user required the light theme remain pixel-identical.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 1
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Toggle follows prefers-color-scheme by default and stores the user's choice in localStorage.",
+    "why": "User asked for a toggle that follows system preference by default.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 2
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Use #7aa2ff as the dark accent color.",
+    "why": "Buy-button contrast was too low in dark mode; this gives 5.1:1 on the card background, passing WCAG AA.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 3
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Put ThemeToggle behind the darkMode feature flag, off by default.",
+    "why": "User did not want the toggle shipped yet.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 4
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Commit all work as a single commit a41c8e2 with message 'SHOP-102: dark theme behind darkMode flag'.",
+    "why": "User asked to commit the SHOP-102 work.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 5
+     }
+    ],
+    "uncertain": false
+   }
+  ],
+  "dead_ends": [],
+  "left_out": [
+   {
+    "text": "The toggle is not shipped: it is gated behind the darkMode flag, off by default, at the user's request. The final decision on enabling the flag is not recorded in the evidence.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 4
+     }
+    ]
+   }
+  ],
+  "pending": [
+   {
+    "text": "Decide when to enable the darkMode flag and ship the toggle; no decision is recorded.",
+    "cites": []
+   },
+   {
+    "text": "Evidence lists 37 hard-coded colors in 9 files but edits touch only header.css and product-card.css (plus theme.css); whether the remaining files were converted is not shown.",
+    "cites": []
+   }
+  ],
+  "briefing": "Task SHOP-102 in acme-shop (branch feature/SHOP-102-dark-mode, commit a41c8e2): implemented a dark theme. Hard-coded colors in src/ui were moved into CSS variables in src/ui/theme.css (--bg, --text, --accent) with the light theme kept pixel-identical; header.css and product-card.css were updated. A ThemeToggle (src/ui/ThemeToggle.js) in the header follows prefers-color-scheme by default and stores the choice in localStorage. The dark accent is #7aa2ff (5.1:1 contrast on the card background) to meet WCAG AA for the buy button. The toggle is wrapped in the darkMode flag (src/flags.js), off by default, because the user did not want it shipped yet. Open items: when to enable the flag, and whether the other files with hard-coded colors (37 colors in 9 files originally) were fully converted, since only a few files were edited. No explicit user rules beyond: keep light theme pixel-identical and keep the toggle behind the flag."
+ },
+ "files": [
+  {
+   "short": "acme-shop/src/flags.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-09T10:20:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/ui/ThemeToggle.js",
+   "edits": 2,
+   "status": "final",
+   "last": "2026-09-09T10:20:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/ui/header.css",
+   "edits": 2,
+   "status": "final",
+   "last": "2026-09-09T10:12:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/ui/product-card.css",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-09T10:08:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/ui/theme.css",
+   "edits": 2,
+   "status": "final",
+   "last": "2026-09-09T10:16:00.000Z"
+  }
+ ],
+ "commits": {
+  "confirmed": [
+   {
+    "hash": "a41c8e2",
+    "branch": "feature/SHOP-102-dark-mode",
+    "msg": "SHOP-102: dark theme behind darkMode flag",
+    "source": "main",
+    "ts": "2026-09-09T10:24:00.000Z",
+    "pushed": false,
+    "undone": false
+   }
+  ],
+  "possible": []
+ },
+ "sources": [
+  "`b2c3d4e5` (turns 0-5)"
+ ],
+ "info": {
+  "range_mode": {
+   "b2c3d4e5": "llm-vote3/3"
+  },
+  "dropped": {
+   "decisions": 0,
+   "dead_ends": 0,
+   "left_out": 0
+  },
+  "transcript_chars": 1872,
+  "capsule_call": {
+   "cost_usd": 0.027888000000000003,
+   "input_tokens": 2678,
+   "output_tokens": 1718
+  },
+  "llm_calls": 4,
+  "cost_usd": 0.0496
+ },
+ "markdown": "# Work capsule \u00b7 SHOP-102\n\n> Generated automatically from: `b2c3d4e5` (turns 0-5). Citations `session:turn` point to the evidence.\n\n## Objective\nBuild a dark theme for the acme-shop storefront (SHOP-102): extract hard-coded colors into CSS variables, add a theme toggle that follows prefers-color-scheme, fix buy-button contrast for WCAG AA in dark mode, and keep the toggle behind a darkMode feature flag.\n\n## Timeline\n| Date | Repo | Result | Evidence |\n|---|---|---|---|\n| 09-09 | acme-shop | Listed hard-coded colors in src/ui: 37 colors across 9 files, mostly in header.css and product-card.css. | `b2c3d4e5:0` |\n| 09-09 | acme-shop | Created theme.css with --bg, --text, --accent variables and replaced literals in header.css and product-card.css, keeping light theme identical. | `b2c3d4e5:1` |\n| 09-09 | acme-shop | Added ThemeToggle in header with prefers-color-scheme default; choice stored in localStorage. | `b2c3d4e5:2` |\n| 09-09 | acme-shop | Changed dark accent to #7aa2ff (5.1:1 contrast on card background) to fix buy-button contrast for WCAG AA. | `b2c3d4e5:3` |\n| 09-09 | acme-shop | Wrapped ThemeToggle in the darkMode feature flag, off by default (flags.js). | `b2c3d4e5:4` |\n| 09-09 | acme-shop | Committed a41c8e2 on feature/SHOP-102-dark-mode: 'SHOP-102: dark theme behind darkMode flag'. | `b2c3d4e5:5` |\n\n## Decisions and why\n- **Move hard-coded colors into CSS variables in a new theme.css (--bg, --text, --accent).** \u2014 Prerequisite for a dark theme; user required the light theme remain pixel-identical. `b2c3d4e5:1`\n- **Toggle follows prefers-color-scheme by default and stores the user's choice in localStorage.** \u2014 User asked for a toggle that follows system preference by default. `b2c3d4e5:2`\n- **Use #7aa2ff as the dark accent color.** \u2014 Buy-button contrast was too low in dark mode; this gives 5.1:1 on the card background, passing WCAG AA. `b2c3d4e5:3`\n- **Put ThemeToggle behind the darkMode feature flag, off by default.** \u2014 User did not want the toggle shipped yet. `b2c3d4e5:4`\n- **Commit all work as a single commit a41c8e2 with message 'SHOP-102: dark theme behind darkMode flag'.** \u2014 User asked to commit the SHOP-102 work. `b2c3d4e5:5`\n\n## Files touched\n**Final**\n- `acme-shop/src/flags.js` (1x)\n- `acme-shop/src/ui/ThemeToggle.js` (2x)\n- `acme-shop/src/ui/header.css` (2x)\n- `acme-shop/src/ui/product-card.css` (1x)\n- `acme-shop/src/ui/theme.css` (2x)\n\n## Commits\n- `a41c8e2` `feature/SHOP-102-dark-mode` \u00b7 SHOP-102: dark theme behind darkMode flag \u00b7 main\n\n## Dead ends\n_(none)_\n\n## Left out\n- The toggle is not shipped: it is gated behind the darkMode flag, off by default, at the user's request. The final decision on enabling the flag is not recorded in the evidence. `b2c3d4e5:4`\n\n## Pending\n- Decide when to enable the darkMode flag and ship the toggle; no decision is recorded.\n- Evidence lists 37 hard-coded colors in 9 files but edits touch only header.css and product-card.css (plus theme.css); whether the remaining files were converted is not shown.\n\n## Briefing to resume\n> Task SHOP-102 in acme-shop (branch feature/SHOP-102-dark-mode, commit a41c8e2): implemented a dark theme. Hard-coded colors in src/ui were moved into CSS variables in src/ui/theme.css (--bg, --text, --accent) with the light theme kept pixel-identical; header.css and product-card.css were updated. A ThemeToggle (src/ui/ThemeToggle.js) in the header follows prefers-color-scheme by default and stores the choice in localStorage. The dark accent is #7aa2ff (5.1:1 contrast on the card background) to meet WCAG AA for the buy button. The toggle is wrapped in the darkMode flag (src/flags.js), off by default, because the user did not want it shipped yet. Open items: when to enable the flag, and whether the other files with hard-coded colors (37 colors in 9 files originally) were fully converted, since only a few files were edited. No explicit user rules beyond: keep light theme pixel-identical and keep the toggle behind the flag.\n",
+ "generated_at": "2026-10-07T00:29:48+00:00"
+}
