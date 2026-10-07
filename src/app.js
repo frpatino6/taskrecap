@@ -11,7 +11,8 @@ import { STAGES, clip, log, makeMatchScanner, makeReporter, stage, throttle } fr
 import { buildTimeline } from './timeline.js';
 import { CapsuleSearch } from './search.js';
 import { UNASSIGNED, redact } from './sessions.js';
-import { CapsuleStore, SessionIndex, isGeneratable, planTask } from './tasks.js';
+import { CapsuleStore, SessionIndex, capsuleStaleness, isGeneratable, planTask } from './tasks.js';
+import { pageMessages } from './messages.js';
 import { UsageTracker, sumMetas } from './usage.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -99,14 +100,25 @@ export class App {
     return this.usage.snapshot();
   }
 
-  /** `activity` (days with prompts, only the timeline needs it) is left out unless asked for. */
+  /**
+   * `activity` (days with prompts, only the timeline needs it) is left out unless asked for. A task with a capsule also
+   * carries `outdated` and `new_messages`: how many of its messages were written after the capsule (free, see capsuleStaleness).
+   */
   listTasks({ activity = false } = {}) {
-    const objectives = new Map(this.store.all().map((c) => [c.key, (c.capsule && c.capsule.objective) || '']));
+    const caps = new Map(this.store.all().map((c) => [c.key, c]));
     const tasks = this.index.tasks();
+    const sessions = caps.size ? this.index.sessions() : [];
     for (const t of tasks) {
-      t.has_capsule = objectives.has(t.key);
-      t.objective = objectives.get(t.key) || '';
+      const cap = caps.get(t.key);
+      t.has_capsule = Boolean(cap);
+      t.objective = (cap && cap.capsule && cap.capsule.objective) || '';
       t.generatable = isGeneratable(t.key);
+      if (cap) {
+        const st = capsuleStaleness(sessions, t.key, cap.generated_at);
+        t.outdated = st.new_messages > 0;
+        t.new_messages = st.new_messages;
+        t.capsule_at = st.known ? cap.generated_at : null;
+      }
       if (!activity) delete t.activity;
     }
     return tasks;
@@ -117,16 +129,52 @@ export class App {
     return buildTimeline(this.listTasks({ activity: true }), opts);
   }
 
+  /**
+   * Everything the task page needs. `sessions` are the sessions of the task with, for each, whether the key is its own task
+   * (`main`), whether it also holds other tasks (`mixed`) and how many of its messages are newer than the capsule.
+   * `stale` is null without a capsule; `markable` says the key can be found in the text of messages (a branch name cannot).
+   */
   taskDetail(key) {
+    const cap = this.store.load(key);
+    const stale = cap ? capsuleStaleness(this.index.sessions(), key, cap.generated_at) : null;
     const sessions = this.index.taskSessions(key).map(([s]) => {
-      const { path: _p, mentions: _m, ...rest } = s;
-      return rest;
+      const { path: _p, mentions, prompt_ts: _t, mention_ts: _mt, ...rest } = s;
+      return {
+        ...rest, main: s.key === key, mixed: s.key !== key || Object.keys(mentions).some((k) => k !== key),
+        task_mentions: mentions[key] || 0, new_messages: stale ? stale.by_session[s.id] || 0 : 0,
+      };
     });
     sessions.sort((a, b) => ((a.first_ts || '') < (b.first_ts || '') ? -1 : (a.first_ts || '') > (b.first_ts || '') ? 1 : 0));
     const task = this.listTasks().find((t) => t.key === key) || null;
-    const cap = this.store.load(key);
     if (!task && !sessions.length && !cap) return null;
-    return { task, sessions, capsule: this.withRowTimes(cap) };
+    return {
+      task, sessions, capsule: this.withRowTimes(cap), markable: this.isMarkable(key),
+      stale: stale ? { known: stale.known, generated_at: stale.known ? cap.generated_at : null, new_messages: stale.new_messages, new_sessions: stale.new_sessions } : null,
+    };
+  }
+
+  /** A task key written like a work key (ABC-123) can be looked for in message text; a branch name cannot. */
+  isMarkable(key) {
+    return key !== UNASSIGNED && new RegExp(`^(?:${this.keyRegex})$`).test(key);
+  }
+
+  /**
+   * Free: one page of the user's messages of a session, for the task view. Every text is redacted and clipped.
+   * `scope`: all | mine (messages citing the task key) | new (written after the capsule). `session` is an id or its first 8 characters.
+   */
+  sessionMessages({ key = '', session, scope = 'all', offset, limit }) {
+    const file = resolveSession(this.index.listFiles(), session);
+    const summary = this.index.sessions().find((s) => s.path === file) || null;
+    const cap = key ? this.store.load(key) : null;
+    const since = cap ? Date.parse(cap.generated_at) : NaN;
+    const page = pageMessages(file, {
+      key, markable: Boolean(key) && this.isMarkable(key), main: !summary || !key || summary.key === key, since, scope, offset, limit, keyRegex: this.keyRegex,
+    });
+    const id = path.basename(file).replace(/\.jsonl$/, '');
+    return {
+      key, session: { id, id8: id.slice(0, 8), project: summary ? summary.project : '', branch: summary ? summary.branch : '', first_ts: summary ? summary.first_ts : null, last_ts: summary ? summary.last_ts : null },
+      mark: Boolean(key) && this.isMarkable(key), generated_at: Number.isFinite(since) ? cap.generated_at : null, ...page,
+    };
   }
 
   /** The stored capsule plus, on each timeline row, the time of its first cited message (free; the stored files are unchanged). */
