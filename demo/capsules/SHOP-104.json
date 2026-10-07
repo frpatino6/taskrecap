@@ -1,0 +1,250 @@
+{
+ "key": "SHOP-104",
+ "capsule": {
+  "objective": "Stop customers from being charged twice when they double-click 'Pay now' (SHOP-104), using an idempotency key that the orders service honours, without touching the payment provider code.",
+  "timeline": [
+   {
+    "date": "09-16",
+    "repo": "acme-shop",
+    "result": "Reproduced the double charge: two clicks within 300 ms send two POST /api/orders requests and both are accepted.",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 0
+     }
+    ]
+   },
+   {
+    "date": "09-16",
+    "repo": "acme-shop",
+    "result": "Disabled the Pay button while the request is in flight.",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 1
+     }
+    ]
+   },
+   {
+    "date": "09-16",
+    "repo": "acme-shop",
+    "result": "Judged that not enough (slow network, page reload) and added an Idempotency-Key header, one per checkout attempt; the orders service returns the first result for a repeated key. Provider code untouched.",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 2
+     }
+    ]
+   },
+   {
+    "date": "09-16",
+    "repo": "acme-shop",
+    "result": "Kept the key in sessionStorage so a reload reuses it; it is cleared only after a confirmed order.",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 3
+     }
+    ]
+   },
+   {
+    "date": "09-16",
+    "repo": "acme-shop",
+    "result": "Checkout tests: 31 of 31 pass, including 4 new duplicate-submit cases.",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 4
+     }
+    ]
+   },
+   {
+    "date": "09-17",
+    "repo": "acme-shop",
+    "result": "QA double-clicked 20 times on staging and got a single order. Added a 'we are confirming your order' message for timeouts; the retry reuses the same key.",
+    "cites": [
+     {
+      "session": "a7b8c9d0",
+      "turn": 0
+     }
+    ]
+   },
+   {
+    "date": "09-17",
+    "repo": "acme-shop",
+    "result": "Committed and pushed the idempotency-key fix.",
+    "cites": [
+     {
+      "session": "a7b8c9d0",
+      "turn": 2
+     }
+    ]
+   }
+  ],
+  "decisions": [
+   {
+    "decision": "Send an Idempotency-Key header, generated once per checkout attempt, and let the orders service return the first result for a repeated key.",
+    "why": "Disabling the button alone does not stop duplicates on a slow network or after a page reload.",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 1
+     },
+     {
+      "session": "f6a7b8c9",
+      "turn": 2
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Leave the payment provider code untouched.",
+    "why": "The user said it belongs to another team.",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 2
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Keep the key in sessionStorage.",
+    "why": "A page reload reuses the same key instead of creating a second order.",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 3
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "On a timeout, show 'We are confirming your order, do not pay again' and retry with the same key.",
+    "why": "Keeps the customer from paying again while the first request is still slow.",
+    "cites": [
+     {
+      "session": "a7b8c9d0",
+      "turn": 0
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "No automatic retries with backoff in this branch.",
+    "why": "The user considered it a bigger change and wants it later.",
+    "cites": [
+     {
+      "session": "a7b8c9d0",
+      "turn": 1
+     }
+    ],
+    "uncertain": false
+   }
+  ],
+  "dead_ends": [
+   {
+    "text": "Disabling the Pay button after the first click was tried first and judged not enough on its own (slow network, page reload).",
+    "cites": [
+     {
+      "session": "f6a7b8c9",
+      "turn": 1
+     },
+     {
+      "session": "f6a7b8c9",
+      "turn": 2
+     }
+    ]
+   }
+  ],
+  "left_out": [
+   {
+    "text": "Automatic retries with backoff were deliberately left for a later change.",
+    "cites": [
+     {
+      "session": "a7b8c9d0",
+      "turn": 1
+     }
+    ]
+   }
+  ],
+  "pending": [
+   {
+    "text": "Plan the automatic retry with backoff as a follow-up change.",
+    "cites": []
+   }
+  ],
+  "briefing": "Task SHOP-104 in acme-shop (branch fix/SHOP-104-double-submit, pushed): customers could be charged twice by double-clicking 'Pay now'. The fix sends an Idempotency-Key header, generated once per checkout attempt and kept in sessionStorage so a reload reuses it; the orders service (services/orders/create.js) returns the first result for a repeated key. The Pay button is also disabled while the request is in flight, but that alone was not enough. On a timeout the customer sees 'We are confirming your order, do not pay again' and the retry reuses the same key. Rule from the user: do not touch the payment provider code (another team owns it). QA double-clicked 20 times on staging and got one order; 31 of 31 checkout tests pass. Open item: automatic retries with backoff were left for a follow-up."
+ },
+ "files": [
+  {
+   "short": "acme-shop/services/orders/create.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-16T14:15:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/checkout/CheckoutError.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-17T09:06:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/checkout/PayButton.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-16T14:09:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/checkout/idempotency.js",
+   "edits": 3,
+   "status": "final",
+   "last": "2026-09-17T09:06:00.000Z"
+  },
+  {
+   "short": "acme-shop/src/checkout/submit.test.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-16T14:04:00.000Z"
+  }
+ ],
+ "commits": {
+  "confirmed": [
+   {
+    "hash": "5d2f7a1",
+    "branch": "fix/SHOP-104-double-submit",
+    "msg": "SHOP-104: idempotency key prevents duplicate orders",
+    "source": "main",
+    "ts": "2026-09-17T09:19:00.000Z",
+    "pushed": true,
+    "undone": false
+   }
+  ],
+  "possible": []
+ },
+ "sources": [
+  "`a7b8c9d0` (turns 0-2)",
+  "`f6a7b8c9` (turns 0-4)"
+ ],
+ "info": {
+  "range_mode": {
+   "a7b8c9d0": "llm-vote3/3",
+   "f6a7b8c9": "llm-vote3/3"
+  },
+  "dropped": {
+   "decisions": 0,
+   "dead_ends": 0,
+   "left_out": 0
+  },
+  "transcript_chars": 2743,
+  "capsule_call": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cost_usd": 0
+  },
+  "llm_calls": 0,
+  "cost_usd": 0
+ },
+ "markdown": "# Work capsule · SHOP-104\n\n> Generated automatically from: `a7b8c9d0` (turns 0-2), `f6a7b8c9` (turns 0-4). Citations `session:turn` point to the evidence.\n\n## Objective\nStop customers from being charged twice when they double-click 'Pay now' (SHOP-104), using an idempotency key that the orders service honours, without touching the payment provider code.\n\n## Timeline\n| Date | Repo | Result | Evidence |\n|---|---|---|---|\n| 09-16 | acme-shop | Reproduced the double charge: two clicks within 300 ms send two POST /api/orders requests and both are accepted. | `f6a7b8c9:0` |\n| 09-16 | acme-shop | Disabled the Pay button while the request is in flight. | `f6a7b8c9:1` |\n| 09-16 | acme-shop | Judged that not enough (slow network, page reload) and added an Idempotency-Key header, one per checkout attempt; the orders service returns the first result for a repeated key. Provider code untouched. | `f6a7b8c9:2` |\n| 09-16 | acme-shop | Kept the key in sessionStorage so a reload reuses it; it is cleared only after a confirmed order. | `f6a7b8c9:3` |\n| 09-16 | acme-shop | Checkout tests: 31 of 31 pass, including 4 new duplicate-submit cases. | `f6a7b8c9:4` |\n| 09-17 | acme-shop | QA double-clicked 20 times on staging and got a single order. Added a 'we are confirming your order' message for timeouts; the retry reuses the same key. | `a7b8c9d0:0` |\n| 09-17 | acme-shop | Committed and pushed the idempotency-key fix. | `a7b8c9d0:2` |\n\n## Decisions and why\n- **Send an Idempotency-Key header, generated once per checkout attempt, and let the orders service return the first result for a repeated key.** — Disabling the button alone does not stop duplicates on a slow network or after a page reload. `f6a7b8c9:1` `f6a7b8c9:2`\n- **Leave the payment provider code untouched.** — The user said it belongs to another team. `f6a7b8c9:2`\n- **Keep the key in sessionStorage.** — A page reload reuses the same key instead of creating a second order. `f6a7b8c9:3`\n- **On a timeout, show 'We are confirming your order, do not pay again' and retry with the same key.** — Keeps the customer from paying again while the first request is still slow. `a7b8c9d0:0`\n- **No automatic retries with backoff in this branch.** — The user considered it a bigger change and wants it later. `a7b8c9d0:1`\n\n## Files touched\n**Final**\n- `acme-shop/services/orders/create.js` (1x)\n- `acme-shop/src/checkout/CheckoutError.js` (1x)\n- `acme-shop/src/checkout/PayButton.js` (1x)\n- `acme-shop/src/checkout/idempotency.js` (3x)\n- `acme-shop/src/checkout/submit.test.js` (1x)\n\n## Commits\n- `5d2f7a1` `fix/SHOP-104-double-submit` · SHOP-104: idempotency key prevents duplicate orders · _pushed_ · main\n\n## Dead ends\n- Disabling the Pay button after the first click was tried first and judged not enough on its own (slow network, page reload). `f6a7b8c9:1` `f6a7b8c9:2`\n\n## Left out\n- Automatic retries with backoff were deliberately left for a later change. `a7b8c9d0:1`\n\n## Pending\n- Plan the automatic retry with backoff as a follow-up change.\n\n## Briefing to resume\n> Task SHOP-104 in acme-shop (branch fix/SHOP-104-double-submit, pushed): customers could be charged twice by double-clicking 'Pay now'. The fix sends an Idempotency-Key header, generated once per checkout attempt and kept in sessionStorage so a reload reuses it; the orders service (services/orders/create.js) returns the first result for a repeated key. The Pay button is also disabled while the request is in flight, but that alone was not enough. On a timeout the customer sees 'We are confirming your order, do not pay again' and the retry reuses the same key. Rule from the user: do not touch the payment provider code (another team owns it). QA double-clicked 20 times on staging and got one order; 31 of 31 checkout tests pass. Open item: automatic retries with backoff were left for a follow-up.\n",
+ "generated_at": "2026-10-07T05:35:28Z"
+}

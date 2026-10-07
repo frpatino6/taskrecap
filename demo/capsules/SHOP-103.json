@@ -1,0 +1,167 @@
+{
+ "key": "SHOP-103",
+ "capsule": {
+  "objective": "Find out why the checkout test suite is flaky on CI (SHOP-103) and make it stable by isolating the fake timer per test.",
+  "timeline": [
+   {
+    "date": "09-10",
+    "repo": "acme-shop",
+    "result": "Investigated the flaky checkout suite on CI: tests fail when two of them share one mocked clock (tests/checkout/setup.js).",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 6
+     }
+    ]
+   },
+   {
+    "date": "09-10",
+    "repo": "acme-shop",
+    "result": "Concluded the shared fake timer was the cause, not the checkout code; each test now creates its own timer and restores it in afterEach.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 7
+     }
+    ]
+   },
+   {
+    "date": "09-10",
+    "repo": "acme-shop",
+    "result": "Ran the suite 20 times in a row: 20 of 20 green.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 8
+     }
+    ]
+   },
+   {
+    "date": "09-10",
+    "repo": "acme-shop",
+    "result": "Moved the change to its own branch fix/SHOP-103-flaky-checkout-tests so it stays out of the dark mode work.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 9
+     }
+    ]
+   }
+  ],
+  "decisions": [
+   {
+    "decision": "Isolate the fake timer per test (create it in each test, restore it in afterEach).",
+    "why": "The flakiness came from two tests sharing one mocked clock, not from the checkout code.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 6
+     },
+     {
+      "session": "b2c3d4e5",
+      "turn": 7
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Prove the fix by running the suite 20 times.",
+    "why": "One green run does not show that a flaky test is fixed; the user asked for 20 runs.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 8
+     }
+    ],
+    "uncertain": false
+   },
+   {
+    "decision": "Commit on its own branch (fix/SHOP-103-flaky-checkout-tests), not on the dark mode branch.",
+    "why": "The user wanted SHOP-103 kept separate from the SHOP-102 work.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 9
+     }
+    ],
+    "uncertain": false
+   }
+  ],
+  "dead_ends": [],
+  "left_out": [
+   {
+    "text": "The 20 green runs were local; no CI run of the fix is recorded in the session.",
+    "cites": [
+     {
+      "session": "b2c3d4e5",
+      "turn": 8
+     }
+    ]
+   }
+  ],
+  "pending": [
+   {
+    "text": "Confirm on CI that the suite stays green after merging; no CI run is recorded.",
+    "cites": []
+   }
+  ],
+  "briefing": "Task SHOP-103 in acme-shop: the checkout test suite was flaky on CI because two tests shared one mocked clock (tests/checkout/setup.js). Each test now creates its own fake timer and restores it in afterEach (checkout.test.js, setup.js and cart/total.test.js were touched). The suite ran 20 of 20 green locally. The commit is on its own branch, fix/SHOP-103-flaky-checkout-tests, as the user asked. Open item: confirm the fix on CI."
+ },
+ "files": [
+  {
+   "short": "acme-shop/src/cart/total.test.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-10T10:31:00.000Z"
+  },
+  {
+   "short": "acme-shop/tests/checkout/checkout.test.js",
+   "edits": 1,
+   "status": "final",
+   "last": "2026-09-10T10:31:00.000Z"
+  },
+  {
+   "short": "acme-shop/tests/checkout/setup.js",
+   "edits": 2,
+   "status": "final",
+   "last": "2026-09-10T10:31:00.000Z"
+  }
+ ],
+ "commits": {
+  "confirmed": [
+   {
+    "hash": "c5d7f13",
+    "branch": "fix/SHOP-103-flaky-checkout-tests",
+    "msg": "SHOP-103: isolate fake timers per test",
+    "source": "main",
+    "ts": "2026-09-10T10:39:00.000Z",
+    "pushed": false,
+    "undone": false
+   }
+  ],
+  "possible": []
+ },
+ "sources": [
+  "`b2c3d4e5` (turns 6-9)"
+ ],
+ "info": {
+  "range_mode": {
+   "b2c3d4e5": "llm-vote3/3"
+  },
+  "dropped": {
+   "decisions": 0,
+   "dead_ends": 0,
+   "left_out": 0
+  },
+  "transcript_chars": 2702,
+  "capsule_call": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cost_usd": 0
+  },
+  "llm_calls": 0,
+  "cost_usd": 0
+ },
+ "markdown": "# Work capsule · SHOP-103\n\n> Generated automatically from: `b2c3d4e5` (turns 6-9). Citations `session:turn` point to the evidence.\n\n## Objective\nFind out why the checkout test suite is flaky on CI (SHOP-103) and make it stable by isolating the fake timer per test.\n\n## Timeline\n| Date | Repo | Result | Evidence |\n|---|---|---|---|\n| 09-10 | acme-shop | Investigated the flaky checkout suite on CI: tests fail when two of them share one mocked clock (tests/checkout/setup.js). | `b2c3d4e5:6` |\n| 09-10 | acme-shop | Concluded the shared fake timer was the cause, not the checkout code; each test now creates its own timer and restores it in afterEach. | `b2c3d4e5:7` |\n| 09-10 | acme-shop | Ran the suite 20 times in a row: 20 of 20 green. | `b2c3d4e5:8` |\n| 09-10 | acme-shop | Moved the change to its own branch fix/SHOP-103-flaky-checkout-tests so it stays out of the dark mode work. | `b2c3d4e5:9` |\n\n## Decisions and why\n- **Isolate the fake timer per test (create it in each test, restore it in afterEach).** — The flakiness came from two tests sharing one mocked clock, not from the checkout code. `b2c3d4e5:6` `b2c3d4e5:7`\n- **Prove the fix by running the suite 20 times.** — One green run does not show that a flaky test is fixed; the user asked for 20 runs. `b2c3d4e5:8`\n- **Commit on its own branch (fix/SHOP-103-flaky-checkout-tests), not on the dark mode branch.** — The user wanted SHOP-103 kept separate from the SHOP-102 work. `b2c3d4e5:9`\n\n## Files touched\n**Final**\n- `acme-shop/src/cart/total.test.js` (1x)\n- `acme-shop/tests/checkout/checkout.test.js` (1x)\n- `acme-shop/tests/checkout/setup.js` (2x)\n\n## Commits\n- `c5d7f13` `fix/SHOP-103-flaky-checkout-tests` · SHOP-103: isolate fake timers per test · main\n\n## Dead ends\n_(none)_\n\n## Left out\n- The 20 green runs were local; no CI run of the fix is recorded in the session. `b2c3d4e5:8`\n\n## Pending\n- Confirm on CI that the suite stays green after merging; no CI run is recorded.\n\n## Briefing to resume\n> Task SHOP-103 in acme-shop: the checkout test suite was flaky on CI because two tests shared one mocked clock (tests/checkout/setup.js). Each test now creates its own fake timer and restores it in afterEach (checkout.test.js, setup.js and cart/total.test.js were touched). The suite ran 20 of 20 green locally. The commit is on its own branch, fix/SHOP-103-flaky-checkout-tests, as the user asked. Open item: confirm the fix on CI.\n",
+ "generated_at": "2026-10-07T05:35:28Z"
+}
