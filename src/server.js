@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { Busy, UserError, WEB_DIR } from './app.js';
+import { Busy, UserError, WEB_DIR, listLangs } from './app.js';
 import { EvidenceError } from './evidence.js';
 import { LLMUnavailable } from './llm.js';
 
@@ -152,10 +152,21 @@ export function makeHandler(app) {
   };
 }
 
+/** The only static files the page may load, by URL. Anything else under web/ (or outside it) is never served. */
+export const WEB_ASSETS = {
+  '/': ['index.html', 'text/html; charset=utf-8'],
+  '/app.css': ['app.css', 'text/css; charset=utf-8'],
+  ...Object.fromEntries(['core', 'home', 'timeline', 'ai', 'files', 'detail', 'evidence', 'main'].map((n) => [`/js/${n}.js`, [`js/${n}.js`, 'text/javascript; charset=utf-8']])),
+};
+
 async function handleGet(app, url, route, res) {
-  if (route === '/') return send(res, 200, fs.readFileSync(path.join(WEB_DIR, 'index.html')), 'text/html; charset=utf-8');
+  if (Object.hasOwn(WEB_ASSETS, route)) {
+    const [file, ctype] = WEB_ASSETS[route];
+    return send(res, 200, fs.readFileSync(path.join(WEB_DIR, file)), ctype);
+  }
   if (route === '/api/info') return send(res, 200, app.info());
-  if (route === '/api/strings') return send(res, 200, app.strings);
+  if (route === '/api/strings') return send(res, 200, app.stringsFor(url.searchParams.get('lang')));
+  if (route === '/api/langs') return send(res, 200, { langs: listLangs() });
   if (route === '/api/usage') return send(res, 200, app.usageSnapshot());
   if (route === '/api/tasks') return send(res, 200, { tasks: app.listTasks() });
   if (route === '/api/timeline') return send(res, 200, app.timeline(timelineOptions(url.searchParams)));

@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { App, DEMO_DIR } from '../src/app.js';
+import { js } from './web_assets.js';
 import { seedDemoCache } from '../src/cli.js';
 import { citeTimestamp, turnTimestamps, withRowTimes } from '../src/evidence.js';
 import { startServer } from '../src/server.js';
@@ -175,9 +176,9 @@ test('every demo capsule row that cites a message gets a time on the same UTC da
   assert.ok(rows >= 18, 'the demo has enough rows to make this meaningful');
 });
 
-// ---- the browser formatter (the real function, lifted from web/index.html) ----
+// ---- the browser formatter (the real function, lifted from web/js) ----
 
-const html = fs.readFileSync(path.join(DEMO_DIR, '..', 'web', 'index.html'), 'utf8');
+const html = js;
 const pad = html.match(/const pad2 = [^\n]+/)[0];
 const fn = html.match(/function whenLabel\(ts\) \{[\s\S]*?\n\}/)[0];
 /** Runs the shipped function with TZ set to `tz` for just this call (a fresh Function, so no zone is cached across zones). */

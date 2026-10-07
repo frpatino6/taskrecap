@@ -36,6 +36,21 @@ export function loadStrings(lang = 'en') {
   return out;
 }
 
+/** The UI languages on disk (web/strings.<code>.json with a `lang_name`): the whitelist for `?lang=`. -> [{code, name}] */
+export function listLangs() {
+  const out = [];
+  for (const f of fs.readdirSync(WEB_DIR)) {
+    const m = f.match(/^strings\.([a-z]{2,3})\.json$/);
+    if (!m) continue;
+    try {
+      out.push({ code: m[1], name: JSON.parse(fs.readFileSync(path.join(WEB_DIR, f), 'utf8')).lang_name || m[1] });
+    } catch {
+      /* unreadable file: not offered */
+    }
+  }
+  return out.sort((a, b) => (a.code === 'en' ? -1 : b.code === 'en' ? 1 : a.code.localeCompare(b.code)));
+}
+
 /** A capsule for this key is already being generated. */
 export class Busy extends Error {
   constructor(key) {
@@ -94,6 +109,11 @@ export class App {
       name: APP_NAME, title: APP_TITLE, version: VERSION, demo: this.demo, lang: this.lang,
       key_regex: this.keyRegex, model: this.model, votes: this.votes,
     };
+  }
+
+  /** Strings for a UI language the user picked in the page; anything not in the whitelist gets the server's own language. */
+  stringsFor(code) {
+    return typeof code === 'string' && listLangs().some((l) => l.code === code) ? loadStrings(code) : this.strings;
   }
 
   usageSnapshot() {
