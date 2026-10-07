@@ -31,5 +31,14 @@
     "jira",
     "productivity"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frpatino6/taskrecap.git"
+  },
+  "homepage": "https://github.com/frpatino6/taskrecap#readme",
+  "bugs": {
+    "url": "https://github.com/frpatino6/taskrecap/issues"
+  },
+  "author": "frpatino6 (https://github.com/frpatino6)"
 }
