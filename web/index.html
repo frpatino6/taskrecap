@@ -230,6 +230,61 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
   .pg-stages li[data-status="running"] .pg-ico::before { animation: none !important; content: "▶"; border: none; width: auto; height: auto; font-size: 13px; }
   .pg-head .spinner { border-top-color: var(--ai); }
 }
+
+/* ---- home timeline (one lane per task) + capsule coverage ---- */
+:root { --vz-1: #2a78d6; --vz-2: #eb6834; --vz-3: #1baf7a; --vz-other: #898781; --vz-label-w: 190px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --vz-1: #3987e5; --vz-2: #d95926; --vz-3: #199e70; } }
+:root[data-theme="dark"] { --vz-1: #3987e5; --vz-2: #d95926; --vz-3: #199e70; }
+.coverage { margin-left: auto; display: flex; align-items: center; gap: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 5px 12px 5px 7px; font-size: 13px; font-weight: 600; text-align: left; }
+.coverage:hover { border-color: var(--accent); }
+.coverage[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.coverage svg { flex: none; }
+.coverage .cv-bg { stroke: var(--border); }
+.coverage .cv-fg { stroke: var(--done); }
+.coverage[hidden] + .usage { margin-left: auto; }
+.coverage + .usage { margin-left: 0; }
+.viewbar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; margin: 28px 0 0; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 3px; }
+.seg button { border: none; background: transparent; color: var(--muted); font-weight: 600; font-size: 14px; padding: 7px 16px; border-radius: 9px; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(20,24,40,.12); }
+.vzfilters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.vzfilters label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.vzfilters select, .vzfilters input { font: inherit; font-size: 14px; color: var(--text); background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 6px 10px; max-width: 180px; }
+.vzfilters select:focus, .vzfilters input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.capfilter { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 4px 6px 4px 12px; }
+.capfilter button { border: none; background: var(--surface); color: var(--accent); border-radius: 999px; font-weight: 700; font-size: 12.5px; padding: 3px 10px; }
+.vz { margin: 14px 0 0; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: 16px 0 14px; }
+.vz-head { padding: 0 18px; }
+.vz-head h2 { font-size: 15px; margin: 0 0 2px; }
+.vz-head p { margin: 0; color: var(--muted); font-size: 13.5px; max-width: 760px; }
+.vz-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 0; padding: 0; font-size: 13px; color: var(--text); }
+.vz-sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--vz-other); }
+.vz-scroll { overflow-x: auto; margin-top: 10px; }
+.vz-chart { min-width: 760px; padding: 0 18px; }
+.vz-row { display: grid; grid-template-columns: var(--vz-label-w) minmax(0, 1fr); }
+.vz-lane { border-top: 1px solid var(--border); }
+.vz-label { position: sticky; left: 0; z-index: 2; background: var(--surface); border: none; border-radius: 8px; color: var(--text); text-align: left; padding: 4px 12px 4px 0; min-height: 42px; line-height: 1.3; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.vz-label:hover .vz-key, .vz-label:focus-visible .vz-key { color: var(--accent); }
+.vz-key { font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vz-key i { font-style: normal; color: var(--done); margin-left: 6px; font-size: 12px; }
+.vz-sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vz-track { position: relative; min-height: 42px; }
+.vz-gl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); opacity: .6; }
+.vz-line { position: absolute; top: 50%; height: 0; border-top: 2px dotted var(--muted); opacity: .45; transform: translateY(-50%); }
+.vz-mark { position: absolute; top: 50%; padding: 0; border: 0; border-radius: 50%; background: var(--vz-other); box-shadow: 0 0 0 2px var(--surface); transform: translate(-50%, -50%); cursor: pointer; transition: transform .12s; }
+.vz-mark::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; }
+.vz-mark:hover { transform: translate(-50%, -50%) scale(1.25); z-index: 1; }
+.vz-mark.s0 { background: var(--vz-1); } .vz-mark.s1 { background: var(--vz-2); } .vz-mark.s2 { background: var(--vz-3); }
+.vz-sw.s0 { background: var(--vz-1); } .vz-sw.s1 { background: var(--vz-2); } .vz-sw.s2 { background: var(--vz-3); }
+.vz-ticks { position: relative; height: 22px; }
+.vz-axis-pad { position: sticky; left: 0; z-index: 2; background: var(--surface); }
+.vz-tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.vz-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 18px 0; font-size: 13px; color: var(--muted); }
+.vz-empty { padding: 28px 18px 14px; text-align: center; color: var(--muted); }
+.vz-tip { position: fixed; z-index: 70; pointer-events: none; max-width: 280px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 8px 12px; font-size: 13px; line-height: 1.45; }
+.vz-tip b { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.vz-tip span { display: block; color: var(--muted); }
+@media (max-width: 560px) { :root { --vz-label-w: 112px; } .coverage { order: 2; } .vzfilters select, .vzfilters input { max-width: 150px; } }
 </style>
 </head>
 <body>
@@ -238,6 +293,10 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
   <header class="top">
     <div class="logo" aria-hidden="true">◈</div>
     <div class="brand"><span id="title">taskrecap</span><small id="tagline"></small></div>
+    <button class="coverage" id="coverage" type="button" aria-pressed="false" hidden>
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle class="cv-bg" cx="13" cy="13" r="10.5" fill="none" stroke-width="4"/><circle class="cv-fg" id="cv-fg" cx="13" cy="13" r="10.5" fill="none" stroke-width="4" stroke-linecap="round" transform="rotate(-90 13 13)" stroke-dasharray="0 66"/></svg>
+      <span id="coverage-text"></span>
+    </button>
     <div class="usage" id="usage" aria-live="polite"></div>
     <button class="theme" id="theme" type="button"></button>
   </header>
@@ -263,6 +322,20 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
     </details>
     <div class="aibox" id="aibox" aria-live="polite"></div>
     <div id="airesults" class="airesults"></div>
+    <div class="viewbar" id="viewbar" hidden>
+      <div class="seg" id="seg" role="group">
+        <button type="button" id="view-timeline" aria-pressed="true"></button>
+        <button type="button" id="view-cards" aria-pressed="false"></button>
+      </div>
+      <div class="vzfilters" id="vzfilters">
+        <label><span id="vz-repo-label"></span><select id="vz-repo"></select></label>
+        <label><span id="vz-from-label"></span><input type="date" id="vz-from"></label>
+        <label><span id="vz-to-label"></span><input type="date" id="vz-to"></label>
+        <button class="cta ghost sm" type="button" id="vz-reset"></button>
+      </div>
+      <span class="capfilter" id="capfilter" hidden><span id="capfilter-text"></span><button type="button" id="capfilter-clear"></button></span>
+    </div>
+    <section class="vz" id="timeline" hidden aria-labelledby="vz-title"></section>
     <div class="grid" id="grid" role="list" style="margin-top:24px"></div>
     <div class="nonewrap" id="nonewrap" hidden>
       <p class="empty" id="none"></p>
@@ -275,6 +348,7 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
   <main id="detail" hidden></main>
   <p class="empty" id="loading"></p>
 </div>
+<div class="vz-tip" id="vz-tip" role="tooltip" hidden></div>
 <div class="evoverlay" id="evidence" hidden>
   <div class="evbackdrop" id="ev-backdrop"></div>
   <aside class="evpanel" id="ev-panel" role="dialog" aria-modal="true" aria-labelledby="ev-title" tabindex="-1"></aside>
@@ -318,6 +392,17 @@ function applyStatic() {
   $("fq").setAttribute("aria-label", S.files_find_label);
   $("none-hint").textContent = S.search_none_hint;
   $("none-ai").textContent = S.search_none_ai;
+  $("seg").setAttribute("aria-label", S.view_label);
+  $("view-timeline").textContent = S.view_timeline;
+  $("view-cards").textContent = S.view_cards;
+  $("vz-repo-label").textContent = S.tl_repo;
+  $("vz-from-label").textContent = S.tl_from;
+  $("vz-to-label").textContent = S.tl_to;
+  $("vz-reset").textContent = S.tl_reset;
+  $("capfilter-text").textContent = S.coverage_filter_on;
+  $("capfilter-clear").textContent = S.coverage_clear;
+  $("coverage").title = S.coverage_title;
+  $("coverage").setAttribute("aria-label", S.coverage_label);
 }
 
 // ---------- AI usage counter (header) ----------
@@ -378,16 +463,190 @@ function bindCards(root) {
   root.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => { location.hash = "#/task/" + encodeURIComponent(b.dataset.key); }));
 }
 
+// ---------- home: cards or timeline ----------
+let VIEW = "timeline"; // remembered between visits
+try { if (localStorage.getItem("tr-view") === "cards") VIEW = "cards"; } catch (e) { /* storage blocked: default view */ }
+const VZ = { repo: "", from: "", to: "", limit: 12, noCapsule: false }; // timeline filters; the capsule filter also narrows the cards
+let TL = null;
+let tlSeq = 0;
+
+function setView(v) {
+  VIEW = v;
+  try { localStorage.setItem("tr-view", v); } catch (e) { /* not remembered, still works */ }
+  renderHome();
+}
+
+function renderCoverage() {
+  const gen = TASKS.filter((t) => t.generatable), ready = gen.filter((t) => t.has_capsule).length;
+  const el = $("coverage");
+  el.hidden = !gen.length;
+  if (!gen.length) return;
+  const C = 2 * Math.PI * 10.5;
+  $("cv-fg").setAttribute("stroke-dasharray", (C * ready / gen.length).toFixed(1) + " " + C.toFixed(1));
+  $("coverage-text").textContent = fmt(S.coverage_text, { ready, total: gen.length });
+  el.setAttribute("aria-pressed", String(VZ.noCapsule));
+}
+
 function renderHome() {
   const byKey = new Map(TASKS.map((t) => [t.key, t]));
-  const list = HITS ? [...HITS.keys()].map((k) => byKey.get(k)).filter(Boolean) : TASKS; // hits are already best first
-  $("grid").innerHTML = list.map((t) => card(t, HITS ? { hit: HITS.get(t.key) } : null)).join("");
+  let list = HITS ? [...HITS.keys()].map((k) => byKey.get(k)).filter(Boolean) : TASKS; // hits are already best first
+  if (VZ.noCapsule) list = list.filter((t) => t.generatable && !t.has_capsule);
+  const timeline = VIEW === "timeline" && TASKS.length > 0;
+  $("grid").innerHTML = timeline ? "" : list.map((t) => card(t, HITS ? { hit: HITS.get(t.key) } : null)).join("");
   $("none").textContent = TASKS.length ? S.no_results : S.no_sessions;
-  $("nonewrap").hidden = list.length > 0;
+  $("nonewrap").hidden = timeline ? !(HITS && !list.length) : list.length > 0;
   $("none-extra").hidden = !(HITS && TASKS.length && !list.length); // free search found nothing: suggest ✨ (never run it for the user)
   $("search-scope").textContent = HITS ? scopeText(SCOPE) : "";
   $("search-scope").hidden = !HITS;
   bindCards($("grid"));
+  $("viewbar").hidden = !TASKS.length;
+  $("view-timeline").setAttribute("aria-pressed", String(timeline));
+  $("view-cards").setAttribute("aria-pressed", String(!timeline));
+  $("vzfilters").hidden = !timeline;
+  $("capfilter").hidden = !VZ.noCapsule;
+  $("timeline").hidden = !timeline;
+  renderCoverage();
+  if (timeline) loadTimeline();
+}
+
+// ---------- timeline ----------
+function tlQuery() {
+  const q = new URLSearchParams();
+  if (VZ.repo) q.set("repo", VZ.repo);
+  if (VZ.from) q.set("from", VZ.from);
+  if (VZ.to) q.set("to", VZ.to);
+  if (VZ.noCapsule) q.set("capsule", "none");
+  if (HITS) q.set("keys", [...HITS.keys()].join("\n")); else q.set("limit", String(VZ.limit));
+  return q.toString();
+}
+
+async function loadTimeline() {
+  const seq = ++tlSeq;
+  try {
+    const r = await api("/api/timeline?" + tlQuery());
+    if (seq !== tlSeq) return; // a newer request is already running
+    TL = r;
+    fillRepoSelect(r.all_repos);
+    renderTimeline();
+  } catch (e) { $("timeline").innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; }
+}
+
+function fillRepoSelect(repos) {
+  const sel = $("vz-repo"), sig = repos.join("\n");
+  if (sel.dataset.sig !== sig) {
+    sel.innerHTML = `<option value="">${esc(S.tl_repo_all)}</option>` + repos.map((r) => `<option value="${esc(r)}">${esc(r)}</option>`).join("");
+    sel.dataset.sig = sig;
+  }
+  sel.value = repos.includes(VZ.repo) ? VZ.repo : "";
+}
+
+const dayLabel = (d, withYear) => new Date(d + "T12:00:00").toLocaleDateString(undefined, withYear ? { month: "short", day: "numeric", year: "numeric" } : { month: "short", day: "numeric" });
+const promptsText = (n) => (n === 1 ? S.tl_prompt : fmt(S.tl_prompts, { n }));
+const activeDaysText = (n) => (n === 1 ? S.tl_active_day : fmt(S.tl_active_days, { n }));
+const laneKey = (l) => (l.kind === "unassigned" ? S.tl_unassigned : l.key);
+const laneRepos = (l) => (l.kind === "unassigned" ? S.tl_unassigned_hint : l.projects.length > 1 ? `${l.project} +${l.projects.length - 1}` : l.project);
+const capsuleText = (l) => (l.generatable ? (l.has_capsule ? S.chip_capsule : S.chip_no_capsule) : "");
+const slotClass = (slot) => (slot >= 0 ? " s" + slot : "");
+
+function laneSummary(l) {
+  return [laneKey(l), laneRepos(l), dayLabel(l.first, true) + (l.last !== l.first ? " – " + dayLabel(l.last, true) : ""), promptsText(l.prompts) + " · " + activeDaysText(l.active_days), capsuleText(l)].filter(Boolean).join(", ");
+}
+
+function renderTimeline() {
+  const tl = TL, el = $("timeline");
+  const yearOf = (d) => d.slice(0, 4), multiYear = yearOf(tl.range.from) !== yearOf(tl.range.to);
+  const named = tl.repos.filter((r) => r.slot >= 0), others = tl.repos.filter((r) => r.slot < 0);
+  const legend = `<ul class="vz-legend" aria-label="${esc(S.tl_legend)}">` +
+    named.map((r) => `<li><span class="vz-sw s${r.slot}" aria-hidden="true"></span>${esc(r.name)}</li>`).join("") +
+    (others.length ? `<li title="${esc(others.map((r) => r.name).join(", "))}"><span class="vz-sw" aria-hidden="true"></span>${esc(S.tl_legend_other)} (${others.length})</li>` : "") + "</ul>";
+  const head = `<div class="vz-head"><h2 id="vz-title">${esc(S.tl_title)}</h2><p>${esc(S.tl_hint)}</p>${tl.repos.length ? legend : ""}</div>`;
+  if (!tl.lanes.length) { el.innerHTML = head + `<p class="vz-empty" role="status">${esc(S.tl_empty)}</p>`; return; }
+  const grid = (ticks) => ticks.map((t) => `<i class="vz-gl" style="left:${t.x}%"></i>`).join("");
+  const lane = (l) => {
+    const marks = l.marks.map((m, i) => {
+      const prev = l.marks[i - 1];
+      const nudge = prev && prev.day === m.day ? 6 : 0; // two repos on the same day sit side by side
+      return `<span class="vz-mark${slotClass(m.slot)}" aria-hidden="true" data-key="${esc(l.key)}" data-day="${esc(m.day)}" data-n="${m.n}" data-repo="${esc(m.project)}" style="left:calc(${m.x}% + ${nudge}px);width:${m.size}px;height:${m.size}px"></span>`;
+    }).join("");
+    return `<div class="vz-row vz-lane">
+      <button type="button" class="vz-label" data-key="${esc(l.key)}" data-tip="lane" aria-label="${esc(fmt(S.tl_open, { key: laneSummary(l) }))}">
+        <span class="vz-key">${esc(laneKey(l))}${l.has_capsule ? '<i aria-hidden="true">✓</i>' : ""}</span><span class="vz-sub">${esc(laneRepos(l))}</span></button>
+      <div class="vz-track">${grid(tl.ticks)}<i class="vz-line" style="left:${l.line.x1}%;width:${Math.max(0, l.line.x2 - l.line.x1)}%"></i>${marks}</div></div>`;
+  };
+  // labels are centred on their day, except at the two ends where they would spill outside the chart
+  const ticks = tl.ticks.map((t) => `<span class="vz-tick" style="left:${t.x}%${t.x < 5 ? ";transform:translateX(-15%)" : t.x > 95 ? ";transform:translateX(-85%)" : ""}">${esc(dayLabel(t.day, multiYear))}</span>`).join("");
+  const table = `<div class="sr"><table><caption>${esc(S.tl_table_caption)}. ${esc(fmt(S.tl_axis, { from: dayLabel(tl.range.from, true), to: dayLabel(tl.range.to, true) }))}</caption>
+    <thead><tr><th>${esc(S.tl_col_task)}</th><th>${esc(S.tl_col_repos)}</th><th>${esc(S.tl_col_dates)}</th><th>${esc(S.tl_col_days)}</th><th>${esc(S.tl_col_prompts)}</th><th>${esc(S.tl_col_capsule)}</th></tr></thead><tbody>` +
+    tl.lanes.map((l) => `<tr><td>${esc(laneKey(l))}</td><td>${esc(l.projects.join(", "))}</td><td>${esc(dayLabel(l.first, true) + " – " + dayLabel(l.last, true))}</td><td>${l.active_days}</td><td>${l.prompts}</td><td>${esc(l.generatable ? (l.has_capsule ? S.tl_yes : S.tl_no) : "")}</td></tr>`).join("") + "</tbody></table></div>";
+  const more = tl.hidden > 0 ? `<button type="button" class="cta ghost sm" id="vz-more">${esc(fmt(S.tl_more, { n: Math.min(12, tl.hidden) }))}</button>` : "";
+  el.innerHTML = head + `<div class="vz-scroll"><div class="vz-chart">
+    <div class="vz-row" aria-hidden="true"><span class="vz-axis-pad"></span><div class="vz-ticks">${ticks}</div></div>${tl.lanes.map(lane).join("")}</div></div>
+    <div class="vz-foot"><span>${esc(fmt(S.tl_showing, { shown: tl.shown, total: tl.total }))}</span>${more}</div>
+    <p class="note" style="margin:10px 18px 0">${esc(S.tl_note)}</p>` + table;
+}
+
+// tooltips: hover (mouse) and focus (keyboard) on lane labels, hover on dots; a click on either opens the task
+const tip = () => $("vz-tip");
+function showTip(html, x, y) {
+  const t = tip();
+  t.innerHTML = html;
+  t.hidden = false;
+  const w = t.offsetWidth, h = t.offsetHeight;
+  t.style.left = Math.max(8, Math.min(x + 14, innerWidth - w - 8)) + "px";
+  t.style.top = Math.max(8, y + h + 24 > innerHeight ? y - h - 14 : y + 18) + "px";
+}
+const hideTip = () => { tip().hidden = true; };
+
+function bindTimeline() {
+  const el = $("timeline");
+  const laneOf = (key) => (TL ? TL.lanes.find((l) => l.key === key) : null);
+  el.addEventListener("click", (e) => {
+    if (e.target.closest("#vz-more")) { VZ.limit += 12; loadTimeline(); return; }
+    const t = e.target.closest("[data-key]");
+    if (t) { hideTip(); location.hash = "#/task/" + encodeURIComponent(t.dataset.key); }
+  });
+  const onMove = (e) => {
+    const m = e.target.closest(".vz-mark");
+    if (m) {
+      const l = laneOf(m.dataset.key);
+      if (!l) return;
+      showTip(`<b>${esc(laneKey(l))}</b><span>${esc(m.dataset.repo)}</span><span>${esc(dayLabel(m.dataset.day, true))} · ${esc(promptsText(Number(m.dataset.n)))}</span>${capsuleText(l) ? `<span>${esc(capsuleText(l))}</span>` : ""}`, e.clientX, e.clientY);
+      return;
+    }
+    const b = e.target.closest(".vz-label");
+    const l = b && laneOf(b.dataset.key);
+    if (l) showTip(`<b>${esc(laneKey(l))}</b><span>${esc(l.projects.join(", "))}</span><span>${esc(dayLabel(l.first, true))}${l.last !== l.first ? " – " + esc(dayLabel(l.last, true)) : ""}</span><span>${esc(promptsText(l.prompts))} · ${esc(activeDaysText(l.active_days))}</span>${capsuleText(l) ? `<span>${esc(capsuleText(l))}</span>` : ""}`, e.clientX, e.clientY);
+    else hideTip();
+  };
+  el.addEventListener("mousemove", onMove);
+  el.addEventListener("mouseleave", hideTip);
+  el.addEventListener("focusin", (e) => {
+    const b = e.target.closest(".vz-label");
+    const l = b && laneOf(b.dataset.key);
+    if (!l) return;
+    const r = b.getBoundingClientRect();
+    onMove({ target: b, clientX: r.left + 24, clientY: r.top });
+  });
+  el.addEventListener("focusout", hideTip);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTip(); });
+}
+
+function bindViewControls() {
+  $("view-timeline").addEventListener("click", () => setView("timeline"));
+  $("view-cards").addEventListener("click", () => setView("cards"));
+  const refilter = () => { VZ.limit = 12; loadTimeline(); };
+  $("vz-repo").addEventListener("change", () => { VZ.repo = $("vz-repo").value; refilter(); });
+  $("vz-from").addEventListener("change", () => { VZ.from = $("vz-from").value; refilter(); });
+  $("vz-to").addEventListener("change", () => { VZ.to = $("vz-to").value; refilter(); });
+  $("vz-reset").addEventListener("click", () => {
+    Object.assign(VZ, { repo: "", from: "", to: "", limit: 12 });
+    $("vz-from").value = ""; $("vz-to").value = "";
+    loadTimeline();
+  });
+  const toggleCapsule = (on) => { VZ.noCapsule = on; renderHome(); };
+  $("coverage").addEventListener("click", () => toggleCapsule(!VZ.noCapsule));
+  $("capfilter-clear").addEventListener("click", () => toggleCapsule(false));
+  bindTimeline();
 }
 
 let searchTimer = null;
@@ -849,6 +1108,7 @@ function route() {
     $("loading").textContent = S.loading;
     TASKS = (await api("/api/tasks")).tasks;
     $("loading").hidden = true;
+    bindViewControls();
     $("q").addEventListener("input", onSearchInput);
     $("ai-search").addEventListener("click", startAiSearch);
     $("none-ai").addEventListener("click", startAiSearch); // only asks for an estimate and a confirmation: nothing is spent yet

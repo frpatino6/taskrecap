@@ -130,6 +130,34 @@ export function promptKeyCounts(s, keyRegex = DEFAULT_KEY_REGEX) {
   return counts;
 }
 
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/** Local calendar day ('YYYY-MM-DD') of an ISO timestamp, or null. Local, because the server runs on the user's own machine. */
+export function localDay(ts) {
+  const d = new Date(ts);
+  if (!ts || Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/**
+ * Real prompts per local day: {days: {day: n}, keyDays: {key: {day: n}}} where keyDays only counts the prompts that cite
+ * each key. Feeds the home timeline; prompts without a usable timestamp are skipped.
+ */
+export function promptDays(s, keyRegex = DEFAULT_KEY_REGEX) {
+  const days = {};
+  const keyDays = {};
+  for (const p of s.prompts) {
+    const day = localDay(p.ts);
+    if (!day) continue;
+    days[day] = (days[day] || 0) + 1;
+    for (const k of new Set(findKeys(p.text, keyRegex))) {
+      if (!keyDays[k]) keyDays[k] = {};
+      keyDays[k][day] = (keyDays[k][day] || 0) + 1;
+    }
+  }
+  return { days, keyDays };
+}
+
 /** Human name of the repo: last folder of the session's working directory. */
 export function projectName(s) {
   if (s.cwd) return basename(s.cwd) || s.cwd;

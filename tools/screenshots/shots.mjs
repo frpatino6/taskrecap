@@ -23,7 +23,7 @@ const check = async (name, fn) => {
 // --- isolated demo server: its own cache dir, its own port, demo sessions only ---
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wc-shots-'));
 const server = spawn(process.execPath, [path.join(ROOT, 'bin', 'taskrecap.js'), '--demo', '--no-open', '--port', '8791'], {
-  cwd: ROOT, env: { ...process.env, TASKRECAP_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'],
+  cwd: ROOT, env: { ...process.env, TASKRECAP_HOME: home, TZ: 'UTC' }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 const base = await new Promise((resolve, reject) => {
   let out = '';
@@ -39,9 +39,11 @@ console.log('demo server at', base, '(cache:', home + ')');
 
 const browser = await chromium.launch();
 const consoleErrors = [];
-async function newPage(scheme = 'light', init) {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: scheme, locale: 'en-US' });
+// The home now opens on the timeline; every flow below that starts from the cards asks for the cards view (view: null = untouched).
+async function newPage(scheme = 'light', init, { view = 'cards', viewport = { width: 1440, height: 900 } } = {}) {
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, colorScheme: scheme, locale: 'en-US', timezoneId: 'UTC' });
   const page = await ctx.newPage();
+  if (view) await page.addInitScript((v) => { try { localStorage.setItem('tr-view', v); } catch (e) { /* ignore */ } }, view);
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('pageerror', (e) => consoleErrors.push('pageerror: ' + e.message));
   if (init) await page.addInitScript(init);
@@ -192,6 +194,7 @@ async function tweetShot(name, query) {
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2, colorScheme: 'dark', locale: 'en-US' });
   const p = await ctx.newPage();
   p.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  await p.addInitScript(() => { try { localStorage.setItem('tr-view', 'cards'); } catch (e) { /* ignore */ } });
   await p.goto(base);
   await p.waitForSelector('.card');
   await p.addStyleTag({ content: TWEET_CSS });
@@ -208,6 +211,92 @@ await check('tweet images: dark home with ready capsules, idle and with a search
   await tweetShot('tweet-home-dark-search.png', TWEET_QUERY);
   await tweetShot('tweet-home-dark-search-compact.png', TWEET_QUERY_COMPACT);
   assert.ok(fs.statSync(path.join(OUT, 'tweet-home-dark-search.png')).size > 50000);
+});
+
+// ---------- home timeline (default view): checks + docs/screenshots/timeline-{light,dark}.png ----------
+// Screenshot-only CSS (never shipped): drop the demo banner, the long notes and the page title so the chart fills the frame.
+const TIMELINE_CSS = '#banner, #search-note, #filesearch, .lead, main#home h1, .controls, .vz-head p { display: none !important; } .viewbar { margin-top: 18px; }';
+async function timelineShot(scheme, name) {
+  const p = await newPage(scheme, null, { view: null, viewport: { width: 1600, height: 900 } });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  await p.addStyleTag({ content: TIMELINE_CSS });
+  await settle(p, 800);
+  await shot(p, name);
+  await p.context().close();
+}
+await check('timeline: opens by default with one lane per task, legend, coverage and "show more"', async () => {
+  const p = await newPage('light', null, { view: null });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  assert.equal(await p.locator('.vz-lane').count(), 12, 'default limit is 12 lanes');
+  assert.ok((await p.locator('.vz-mark').count()) >= 12, 'dots drawn');
+  assert.equal(await p.locator('.vz-legend li').count(), 3, 'three repos in the legend');
+  assert.match(await p.locator('#vz-more').innerText(), /Show 2 more/);
+  assert.match(await p.locator('#coverage-text').innerText(), /6 of 13 tasks have a capsule/);
+  assert.equal(await p.locator('#grid .card').count(), 0, 'cards are not shown in the timeline view');
+  assert.ok((await p.locator('.sr table tbody tr').count()) === 12, 'text alternative has a row per lane');
+  await p.context().close();
+});
+await check('timeline: hover tooltip, click opens the capsule, keyboard works on lane labels', async () => {
+  const p = await newPage('light', null, { view: null });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  await p.locator('.vz-label[data-key="SHOP-104"]').hover();
+  await p.waitForSelector('#vz-tip:not([hidden])');
+  assert.match(await p.locator('#vz-tip').innerText(), /SHOP-104[\s\S]*acme-shop[\s\S]*prompts/);
+  await p.locator('.vz-lane:has(.vz-label[data-key="SHOP-104"]) .vz-mark').first().hover();
+  assert.match(await p.locator('#vz-tip').innerText(), /Sep 1[67], 2026/);
+  await p.locator('.vz-lane:has(.vz-label[data-key="SHOP-104"]) .vz-mark').first().click();
+  await p.waitForSelector('#detail:not([hidden]) h1');
+  assert.match(await p.locator('#detail').innerText(), /SHOP-104/);
+  await p.goBack();
+  await p.waitForSelector('.vz-lane');
+  await p.locator('.vz-label[data-key="SHOP-101"]').focus();
+  await p.waitForSelector('#vz-tip:not([hidden])');
+  await p.keyboard.press('Enter');
+  await p.waitForSelector('#detail:not([hidden]) h1');
+  assert.match(await p.locator('#detail').innerText(), /SHOP-101/);
+  await p.context().close();
+});
+await check('timeline: repo filter, show more, capsule coverage filter and Cards/Timeline toggle that persists', async () => {
+  const p = await newPage('light', null, { view: null });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  await p.selectOption('#vz-repo', 'acme-api');
+  await p.waitForFunction(() => [...document.querySelectorAll('.vz-label')].every((b) => /^API-/.test(b.dataset.key)) && document.querySelectorAll('.vz-label').length >= 3);
+  assert.equal(await p.locator('.vz-lane').count(), 3, 'API-212, API-214 and API-216');
+  await p.click('#vz-reset');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 12);
+  await p.click('#vz-more');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 14);
+  await p.click('#coverage');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 7 && !document.getElementById('capfilter').hidden);
+  assert.equal(await p.locator('#coverage').getAttribute('aria-pressed'), 'true');
+  await p.click('#capfilter-clear');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length >= 12);
+  await p.click('#view-cards');
+  await p.waitForSelector('#grid .card');
+  assert.equal(await p.locator('#timeline').isHidden(), true);
+  await p.reload();
+  await p.waitForSelector('#grid .card');
+  assert.equal(await p.evaluate(() => localStorage.getItem('tr-view')), 'cards', 'the choice is remembered');
+  await p.click('#view-timeline');
+  await p.waitForSelector('.vz-lane');
+  await p.context().close();
+});
+await check('timeline: a search narrows the lanes to the matching tasks', async () => {
+  const p = await newPage('light', null, { view: null });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  await p.fill('#q', 'rate limit');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 1);
+  assert.equal(await p.locator('.vz-label').first().getAttribute('data-key'), 'API-212');
+  await p.context().close();
+});
+await check('timeline screenshots (light and dark)', async () => {
+  await timelineShot('light', 'timeline-light.png');
+  await timelineShot('dark', 'timeline-dark.png');
 });
 
 await check('no console errors during the whole run', async () => {

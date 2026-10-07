@@ -8,6 +8,7 @@ import { Aborted, estimateCost, extractJson, askLlm, isAbort } from './llm.js';
 import { readEvidence, parseSources, resolveSession } from './evidence.js';
 import { FileIndex } from './files.js';
 import { STAGES, clip, log, makeMatchScanner, makeReporter, stage, throttle } from './progress.js';
+import { buildTimeline } from './timeline.js';
 import { CapsuleSearch } from './search.js';
 import { UNASSIGNED, redact } from './sessions.js';
 import { CapsuleStore, SessionIndex, isGeneratable, planTask } from './tasks.js';
@@ -98,15 +99,22 @@ export class App {
     return this.usage.snapshot();
   }
 
-  listTasks() {
+  /** `activity` (days with prompts, only the timeline needs it) is left out unless asked for. */
+  listTasks({ activity = false } = {}) {
     const objectives = new Map(this.store.all().map((c) => [c.key, (c.capsule && c.capsule.objective) || '']));
     const tasks = this.index.tasks();
     for (const t of tasks) {
       t.has_capsule = objectives.has(t.key);
       t.objective = objectives.get(t.key) || '';
       t.generatable = isGeneratable(t.key);
+      if (!activity) delete t.activity;
     }
     return tasks;
+  }
+
+  /** The home timeline (free, local): see buildTimeline for the options. */
+  timeline(opts = {}) {
+    return buildTimeline(this.listTasks({ activity: true }), opts);
   }
 
   taskDetail(key) {

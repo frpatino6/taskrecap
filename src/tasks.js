@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_KEY_REGEX } from './config.js';
 import {
-  GENERIC_BRANCHES, KEY_MIN_MENTIONS, UNASSIGNED, detectKey, parseSession, projectName, promptKeyCounts, redact,
+  GENERIC_BRANCHES, KEY_MIN_MENTIONS, UNASSIGNED, detectKey, parseSession, projectName, promptDays, promptKeyCounts, redact,
 } from './sessions.js';
 import * as capsule from './capsule.js';
 
@@ -13,13 +13,35 @@ export function summarizeSession(file, keyRegex) {
   const [key, method] = detectKey(s, keyRegex);
   const prompts = s.prompts;
   const branches = s.branches.mostCommon().map(([b]) => b).filter((b) => !GENERIC_BRANCHES.has(b));
+  const mentions = Object.fromEntries(promptKeyCounts(s, keyRegex));
+  const { days, keyDays } = promptDays(s, keyRegex);
+  // days with prompts of the session, and, for each secondary key it cites often enough, the days of the prompts citing it
+  const mentionDays = Object.fromEntries(Object.entries(keyDays).filter(([k]) => (mentions[k] || 0) >= KEY_MIN_MENTIONS));
   return {
     id: s.id, path: file, project: projectName(s), key, method,
     first_ts: s.first_ts, last_ts: s.last_ts, n_prompts: prompts.length, size: s.size,
     branch: branches[0] || '', title: s.title,
     snippet: prompts.length ? redact(prompts[0].text).replace(/\n/g, ' ').slice(0, 140) : '',
-    mentions: Object.fromEntries(promptKeyCounts(s, keyRegex)),
+    mentions, days, mention_days: mentionDays,
   };
+}
+
+/**
+ * Days with prompts of task `key`: [{day, n, project}] oldest first. A session counts fully for its main key; for any other
+ * key it cites it only counts the prompts that cite it. A session mixing tasks therefore marks both, so dates are approximate.
+ */
+export function taskActivity(key, sessions) {
+  const cells = new Map();
+  for (const s of sessions) {
+    const days = s.key === key ? s.days : (s.mention_days && s.mention_days[key]) || {};
+    for (const [day, n] of Object.entries(days || {})) {
+      const id = `${day}\u0000${s.project}`;
+      const cell = cells.get(id) || { day, n: 0, project: s.project };
+      cell.n += n;
+      cells.set(id, cell);
+    }
+  }
+  return [...cells.values()].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.project < b.project ? -1 : a.project > b.project ? 1 : 0));
 }
 
 /** All sessions under `projectsDir`, parsed once per file version (path + mtime + size). */
@@ -93,6 +115,7 @@ export class SessionIndex {
     }
     const out = [];
     for (const [k, ss] of keys) {
+      const activity = taskActivity(k, ss);
       ss.sort((a, b) => ((a.first_ts || '') < (b.first_ts || '') ? -1 : (a.first_ts || '') > (b.first_ts || '') ? 1 : 0));
       const kind = k === UNASSIGNED ? UNASSIGNED : (full.test(k) ? 'key' : 'branch');
       const firsts = ss.map((s) => s.first_ts).filter(Boolean);
@@ -102,7 +125,7 @@ export class SessionIndex {
         projects: [...new Set(ss.map((s) => s.project))].sort(),
         first_ts: firsts.length ? firsts.reduce((a, b) => (a < b ? a : b)) : null,
         last_ts: lasts.length ? lasts.reduce((a, b) => (a > b ? a : b)) : null,
-        snippet: ss[0].snippet, prompts: ss.reduce((a, s) => a + s.n_prompts, 0),
+        snippet: ss[0].snippet, prompts: ss.reduce((a, s) => a + s.n_prompts, 0), activity,
       });
     }
     out.sort((a, b) => ((b.last_ts || '') < (a.last_ts || '') ? -1 : (b.last_ts || '') > (a.last_ts || '') ? 1 : 0));
