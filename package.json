@@ -1,6 +1,6 @@
 {
   "name": "taskrecap",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "One living record per task, built from your Claude Code sessions.",
   "type": "module",
   "bin": {
