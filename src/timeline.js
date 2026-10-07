@@ -70,7 +70,7 @@ const parseLimit = (v) => (v === 'all' ? Infinity : Number.isInteger(v) && v > 0
 export function buildTimeline(tasks, opts = {}) {
   const slots = repoSlots(tasks.flatMap((t) => (t.activity || []).map((c) => c.project)));
   const generatable = tasks.filter((t) => t.generatable);
-  const coverage = { ready: generatable.filter((t) => t.has_capsule).length, total: generatable.length };
+  const coverage = { ready: generatable.filter((t) => t.has_capsule).length, total: generatable.length, outdated: generatable.filter((t) => t.has_capsule && t.outdated).length };
   let from = isDay(opts.from) ? opts.from : null;
   let to = isDay(opts.to) ? opts.to : null;
   if (from && to && from > to) [from, to] = [to, from]; // a reversed range means the same days: never an empty chart for it
@@ -106,7 +106,8 @@ export function buildTimeline(tasks, opts = {}) {
       key: task.key, kind: task.kind || (task.key === UNASSIGNED ? UNASSIGNED : 'key'),
       project, slot: slots.has(project) ? slots.get(project) : -1,
       projects: [...new Set(cells.map((c) => c.project))].sort(),
-      has_capsule: !!task.has_capsule, generatable: task.generatable !== false,
+      has_capsule: !!task.has_capsule, outdated: !!(task.has_capsule && task.outdated), new_messages: task.has_capsule ? task.new_messages || 0 : 0,
+      generatable: task.generatable !== false,
       prompts: cells.reduce((a, c) => a + c.n, 0), active_days: new Set(cells.map((c) => c.day)).size,
       first: cells[0].day, last: cells[cells.length - 1].day,
       line: { x1: marks[0].x, x2: marks[marks.length - 1].x }, marks,

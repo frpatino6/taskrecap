@@ -383,6 +383,131 @@ await check('timeline screenshots (light and dark)', async () => {
   await timelineShot('dark', 'timeline-dark.png');
 });
 
+// ---------- sessions section (free) and outdated capsules ----------
+await check('sessions: a task WITHOUT a capsule lists its sessions; a session expands and a message opens the evidence panel', async () => {
+  const p = await newPage('light');
+  await p.goto(base + '#/task/SHOP-106');
+  await p.waitForSelector('#sesslist .sessitem');
+  assert.match(await p.locator('#detail').innerText(), /You can read what was said in this task for free/i, "the no-capsule hint is missing");
+  assert.ok(await p.locator('#detail #gen').count(), 'the generate button must stay');
+  const row = p.locator('#sesslist .sessrow').first();
+  assert.equal(await row.getAttribute('aria-expanded'), 'false');
+  await row.click();
+  assert.equal(await row.getAttribute('aria-expanded'), 'true');
+  await p.waitForSelector('#sesslist .msg');
+  assert.ok((await p.locator('#sesslist .msg').count()) >= 1, 'no messages listed');
+  await p.locator('#sess-jump').scrollIntoViewIfNeeded();
+  await settle(p);
+  await p.locator('#sesslist').scrollIntoViewIfNeeded();
+  await shot(p, 'sessions-no-capsule-light.png');
+  await p.locator('#sesslist .msg').first().click();
+  await p.waitForSelector('#evidence:not([hidden]) .evturn.cited', { timeout: 8000 });
+  assert.match(await p.locator('#evidence').innerText(), /claude --resume/);
+  assert.equal(await p.locator('#evidence .evwarn').count(), 0, 'a listed message must not be flagged as unverified');
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('#evidence', { state: 'hidden' });
+  const focused = await p.evaluate(() => document.activeElement && document.activeElement.className);
+  assert.match(focused, /\bmsg\b/, 'focus returns to the message that was opened');
+  await p.context().close();
+});
+
+await check('sessions: a session shared by several tasks marks the messages that cite the task and can list only those', async () => {
+  const p = await newPage('light');
+  await p.goto(base + '#/task/SHOP-103');
+  await p.waitForSelector('#sesslist .sessitem');
+  assert.match(await p.locator('#sesslist').innerText(), /Shared with other tasks/i);
+  await p.locator('#sesslist .sessitem[data-mixed="1"] .sessrow').first().click();
+  await p.waitForSelector('#sesslist .msgs.marking .msg');
+  const mine = await p.locator('#sesslist .msg.mine').count(), others = await p.locator('#sesslist .msg:not(.mine)').count();
+  assert.ok(mine >= 1 && others >= 1, `expected marked and unmarked messages, got ${mine}/${others}`);
+  assert.match(await p.locator('#sesslist .msg.mine').first().innerText(), /SHOP-103/);
+  assert.match(await p.locator('#sesslist .msgs.marking .note').first().innerText(), /Highlighted/i, 'the marking is explained on screen');
+  await p.locator('#sesslist').scrollIntoViewIfNeeded();
+  await shot(p, 'sessions-shared-light.png');
+  await p.locator('#sessscope button[data-scope="mine"]').click();
+  await p.waitForFunction(() => document.querySelectorAll('#sesslist .msg').length > 0 && document.querySelectorAll('#sesslist .msg:not(.mine)').length === 0);
+  await p.context().close();
+});
+
+await check('sessions: the page does not overflow on a phone and the long list stays inside its box', async () => {
+  const p = await newPage('light', null, { viewport: { width: 390, height: 800 } });
+  await p.goto(base + '#/task/SHOP-103');
+  await p.waitForSelector('#sesslist .sessitem');
+  await p.locator('#sesslist .sessrow').first().click();
+  await p.waitForSelector('#sesslist .msg');
+  assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'horizontal overflow on a phone');
+  await p.context().close();
+});
+
+await check('outdated capsule (SHOP-105): chip on the card, marker on the timeline lane, coverage ring, badge and Update in the capsule view', async () => {
+  const p = await newPage('light', null, { view: 'cards' });
+  await openHome(p);
+  const chip = p.locator('.card[data-key="SHOP-105"] .chip.warn');
+  assert.match(await chip.first().innerText(), /Outdated · 3 new/);
+  assert.equal(await p.locator('.card[data-key="SHOP-101"]').innerText().then((t) => /Outdated/.test(t)), false, 'an up-to-date capsule must not be flagged');
+  assert.match(await p.locator('#coverage-text').innerText(), /1 outdated/);
+  await p.click('#view-timeline');
+  await p.waitForSelector('.vz-lane');
+  const marker = p.locator('.vz-label[data-key="SHOP-105"] i.vz-stale');
+  assert.equal(await marker.count(), 1, 'lane marker for the outdated capsule');
+  assert.equal(await p.locator('.vz-label[data-key="SHOP-101"] i.vz-stale').count(), 0);
+  assert.equal(await p.locator('.vz-label[data-key="SHOP-101"] i:not(.vz-stale)').count(), 1, 'the ✓ stays for ready capsules');
+  assert.equal(await p.locator('.vz-label[data-key="SHOP-105"] i:not(.vz-stale)').count(), 1, 'the ✓ stays for the outdated one too');
+  await p.goto(base + '#/task/SHOP-105');
+  await p.waitForSelector('#detail .stale');
+  const badge = await p.locator('#detail .stale .chip.warn').innerText();
+  assert.match(badge, /^Outdated: 3 new messages since /);
+  assert.match(await p.locator('#detail .stale .hint').innerText(), /regenerates the whole capsule with AI and uses tokens/i);
+  assert.equal(await p.locator('#detail #gen').count(), 1);
+  await p.context().close();
+});
+
+await check('outdated capsule: "See the new messages" lists only the new ones; Update shows the estimate and spends nothing', async () => {
+  const p = await newPage('light', null, { view: 'cards' });
+  const generates = [];
+  p.on('request', (r) => { if (r.method() === 'POST' && /\/api\/generate/.test(r.url())) generates.push(r.url()); });
+  await p.goto(base + '#/task/SHOP-105');
+  await p.waitForSelector('#detail .stale');
+  await p.click('#stale-see');
+  await p.waitForFunction(() => document.querySelectorAll('#sesslist .msg.new').length > 0, null, { timeout: 8000 });
+  assert.equal(await p.locator('#sesslist .msg.new').count(), 3);
+  assert.equal(await p.locator('#sesslist .msg:not(.new)').count(), 0, 'scope "new" lists only the new messages');
+  assert.equal(await p.locator('#sesslist .sessitem:not([hidden])').count(), 1, 'only the session with new messages stays visible');
+  assert.equal(await p.locator('#sessscope button[aria-pressed="true"]').getAttribute('data-scope'), 'new');
+  await settle(p);
+  await shot(p, 'stale-new-messages-light.png');
+  await p.locator('#sessscope button[data-scope="all"]').click();
+  await p.waitForFunction(() => document.querySelectorAll('#sesslist .sessitem:not([hidden])').length === 2, null, { timeout: 8000 });
+  await p.locator('#sesslist .sessitem .sessrow').first().click(); // the older session: all its messages predate the capsule
+  await p.waitForFunction(() => document.querySelectorAll('#sesslist .msg:not(.new)').length >= 5, null, { timeout: 8000 });
+  await p.locator('#detail .stale').scrollIntoViewIfNeeded();
+  await p.click('#gen');
+  await p.waitForFunction(() => /estimated|tokens|~\$/i.test(document.getElementById('genbox').innerText), null, { timeout: 8000 });
+  assert.ok(await p.locator('#ok').count(), 'the confirmation button must appear');
+  await p.click('#no');
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await settle(p);
+  await shot(p, 'stale-capsule-light.png');
+  assert.deepEqual(generates, [], 'nothing may be generated before the user confirms');
+  await p.context().close();
+});
+
+await check('outdated capsule and sessions: dark theme screenshots', async () => {
+  const p = await newPage('dark');
+  await p.goto(base + '#/task/SHOP-105');
+  await p.waitForSelector('#detail .stale');
+  await settle(p);
+  await shot(p, 'stale-capsule-dark.png');
+  await p.goto(base + '#/task/SHOP-106');
+  await p.waitForSelector('#sesslist .sessitem');
+  await p.locator('#sesslist .sessrow').first().click();
+  await p.waitForSelector('#sesslist .msg');
+  await p.locator('#sesslist').scrollIntoViewIfNeeded();
+  await settle(p);
+  await shot(p, 'sessions-no-capsule-dark.png');
+  await p.context().close();
+});
+
 await check('no console errors during the whole run', async () => {
   assert.deepEqual(consoleErrors, []);
 });

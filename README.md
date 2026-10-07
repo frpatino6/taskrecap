@@ -63,6 +63,18 @@ The home page opens on a **timeline**, free and local: one row per task, one dot
 
 The thin dotted line only joins a task's first and last day, it is not time worked. Dates are approximate: a session that mixes several tasks counts for every task its prompts cite. The header also shows how many tasks have a capsule; click it to list the ones that don't.
 
+## No capsule yet? Read the task anyway
+
+Every task page has a **Sessions** section, with or without a capsule, free and local: its sessions with date, repo, branch and number of messages. Open a session to read your own messages in order (secrets masked) and click one to see the original conversation around it, with the command to resume it. When a session also holds other tasks, the messages that cite the task are highlighted and a filter lists only those.
+
+![A task without a capsule: its sessions can be opened and read for free](docs/screenshots/sessions-no-capsule-light.png)
+
+## Is the capsule up to date?
+
+A capsule is a snapshot. If you keep working on the task afterwards, taskrecap notices, for free, by comparing the capsule's date with your newer messages: the card, the timeline row and the capsule page show **Outdated: N new messages since <date>**, and "See the new messages" lists exactly those. **Update with AI** regenerates the whole capsule (with the usual estimate and confirmation, so you know the cost first); nothing is regenerated automatically. A capsule without a date is never flagged.
+
+![An outdated capsule: the badge, the link to the new messages and the Update button](docs/screenshots/stale-capsule-light.png)
+
 ## Two modes: free and AI
 
 The dashboard keeps what is free apart from what uses tokens, and always tells you which is which.
@@ -70,7 +82,7 @@ The dashboard keeps what is free apart from what uses tokens, and always tells y
 | | Normal mode | ✨ AI mode ("Improve with AI") |
 |---|---|---|
 | Cost | **Free, 100% local** | Uses tokens from your own Claude login |
-| Browse tasks, see them on the timeline, open saved capsules, copy a briefing | ✅ | |
+| Browse tasks, see them on the timeline, read the messages of any task, see which capsules are outdated, open saved capsules, copy a briefing | ✅ | |
 | Search | **Literal**: every word you type must appear in a task name, repo, first prompt or saved capsule text | **By meaning**: "payment retry" can find a task about "checkout resubmit" |
 | Write a capsule | | ✅ "Generate capsule" |
 
@@ -120,6 +132,7 @@ Environment: `TASKRECAP_HOME`, `TASKRECAP_PROJECTS_DIR`, `TASKRECAP_KEY_REGEX`, 
 - **Claude Code's session format is not documented** and can change. If a Claude Code update breaks parsing, please open an issue with the version.
 - Tested so far on a small number of real sessions from one developer. Detection quality on other workflows is the biggest unknown, so feedback is very welcome.
 - Sessions with no task key and no feature branch stay **unassigned** and cannot be turned into a capsule yet.
+- "Outdated" counts your newer messages in the task's sessions; in a session shared with other tasks only the messages that cite the task key. Updating regenerates the whole capsule (no incremental update yet).
 - The "reverted" and "possibly undone" marks are heuristics; git history is not read.
 - Commits you make in another terminal are not seen (only those that appear in the sessions).
 - The LLM can still misread evidence. Decisions without a valid citation are dropped, and every decision shows its citation, but you should verify what matters.

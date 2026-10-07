@@ -142,6 +142,6 @@ test('the demo draws a believable timeline: 3 repos, about 4 weeks, a task over 
   const b = lane('API-216');
   assert.ok(a.marks.some((m) => b.marks.some((n) => n.day === m.day)), 'the interleaved pair overlaps on a day');
   assert.ok(lane('unassigned'), 'unassigned stays visible');
-  assert.deepEqual(tl.coverage, { ready: 6, total: 13 });
+  assert.deepEqual(tl.coverage, { ready: 6, total: 13, outdated: 1 });
   assert.ok(tl.repos.every((r) => r.slot >= 0), 'three repos fit the three validated colours');
 });
