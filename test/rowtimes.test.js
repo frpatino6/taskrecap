@@ -91,6 +91,44 @@ test('withRowTimes adds ts to the rows it can place and leaves the input and the
   assert.deepEqual(withRowTimes(undefined, files), []);
 });
 
+test('a ts already stored in a row is never shown: no resolvable cite -> no time; a resolvable cite -> the time of that message', () => {
+  const INVENTED = '2020-01-01T00:00:00.000Z';
+  const input = [
+    { date: '09-07', repo: 'shop', result: 'unplaceable', cites: [{ session: 'gone0000', turn: 0 }], ts: INVENTED },
+    { date: '09-08', repo: 'shop', result: 'no cites at all', ts: INVENTED },
+    { date: '09-09', repo: 'shop', result: 'placeable', cites: [{ session: 'aaaaaaaa', turn: 2 }], ts: INVENTED },
+  ];
+  const snapshot = JSON.stringify(input);
+  const out = withRowTimes(input, files);
+  assert.equal(JSON.stringify(input), snapshot, 'the input rows are not mutated');
+  assert.ok(!('ts' in out[0]) && !('ts' in out[1]), 'a stored ts must be dropped when no cite resolves');
+  assert.equal(out[2].ts, T2, 'the time comes from the cited message, not from the stored value');
+  assert.deepEqual(out.map((r) => r.date), ['09-07', '09-08', '09-09']);
+  assert.deepEqual(out.map((r) => r.result), ['unplaceable', 'no cites at all', 'placeable']);
+});
+
+test('GET /api/tasks/<key> never returns a stored ts for a row whose cites do not resolve, and leaves the stored file untouched', async () => {
+  const stored = {
+    key: 'KK-6',
+    capsule: {
+      objective: 'x', decisions: [], dead_ends: [], left_out: [], pending: [], briefing: '',
+      timeline: [
+        { date: '09-07', repo: 'shop', result: 'hallucinated time', cites: [{ session: 'gone0000', turn: 0 }], ts: '2020-01-01T00:00:00.000Z' },
+        { date: '09-08', repo: 'shop', result: 'real time', cites: [{ session: 'aaaaaaaa', turn: 1 }], ts: '2020-01-01T00:00:00.000Z' },
+      ],
+    },
+    files: [], commits: { confirmed: [], possible: [] }, markdown: '',
+  };
+  app.store.save('KK-6', stored);
+  const file = path.join(tmp, 'cache', 'KK-6.json');
+  const before = fs.readFileSync(file, 'utf8');
+  const [status, body] = await get('/api/tasks/KK-6');
+  assert.equal(status, 200);
+  const rows = body.capsule.capsule.timeline;
+  assert.deepEqual(rows.map((r) => r.ts || null), [null, T1]);
+  assert.equal(fs.readFileSync(file, 'utf8'), before, 'the stored capsule file is not rewritten');
+});
+
 test('timestamps are re-read when the session file changes', () => {
   const dir = tmpDir();
   const f = makeSession(dir, 'cccccccc-0001', [[T0, 'KK-5 one', 'ok']]);

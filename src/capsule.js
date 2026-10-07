@@ -547,6 +547,8 @@ export function validateCapsule(cap, valid) {
   for (const field of ['timeline', 'pending']) {
     clean[field] = (cap[field] || []).map((i) => ({ ...i, cites: (i.cites || []).filter((c) => citeOk(c, valid)) }));
   }
+  // `ts` is computed from the cited message when the capsule is read; never keep one the model wrote.
+  clean.timeline = clean.timeline.map(({ ts: _invented, ...row }) => row);
   return [clean, dropped];
 }
 
