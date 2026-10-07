@@ -3,6 +3,12 @@
   "private": true,
   "type": "module",
   "description": "Maintainer tooling: README screenshots with Playwright. Not part of the published package.",
-  "scripts": { "shots": "node shots.mjs" },
-  "devDependencies": { "playwright": "^1.50.0" }
+  "scripts": {
+    "shots": "node shots.mjs",
+    "demo-gif": "node record-demo.mjs",
+    "social": "node social-preview.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
 }
