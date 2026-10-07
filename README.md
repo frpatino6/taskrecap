@@ -4,12 +4,12 @@
 
 You work on several repos, each with many tasks. Weeks later you need to know *what was done in that task, what was decided and why, and what is still pending*, and the answer is scattered across dozens of Claude conversations. taskrecap reads your local sessions, groups them by task, and writes a **capsule**: objective, timeline, decisions with their reasons, files and commits, dead ends, what was left out, what is pending, and a briefing you can paste into a fresh Claude session to pick the task up again.
 
-![A capsule: objective, timeline with clickable evidence, decisions and their reasons (fictional demo data)](docs/screenshots/03-capsule-view-light.png)
+![Every claim in a capsule links to the original message behind it: click a citation to verify it, or copy the command to resume that exact conversation (fictional demo data)](docs/screenshots/04-evidence-panel-light.png)
 
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/01-home-light.png" alt="Task cards showing each capsule's objective, with free local search and an AI search clearly marked"></td>
-    <td width="50%"><img src="docs/screenshots/04-evidence-panel-light.png" alt="Click any citation to read the original message behind it, with a copy-resume-command button"></td>
+    <td width="50%"><img src="docs/screenshots/03-capsule-view-light.png" alt="A capsule: objective, timeline with clickable evidence, decisions and their reasons"></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/06-ai-progress-light.png" alt="AI actions show real progress, a live activity log, a running token and cost counter, and a Cancel button"></td>
