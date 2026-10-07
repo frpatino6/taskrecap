@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -25,7 +26,8 @@ test('parseCli: no arguments means the dashboard; flags are validated', () => {
 test('the CLI prints help, version and the demo task list', () => {
   const run = (args) => spawnSync(process.execPath, [BIN, ...args], { env: env(), encoding: 'utf8' });
   assert.match(run(['--help']).stdout, /Usage:/);
-  assert.match(run(['--version']).stdout, /taskrecap 0\.1\.0/);
+  const { version } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(run(['--version']).stdout.trim(), `taskrecap ${version}`); // the number users see is the one that was published
   const list = run(['list', '--demo']);
   assert.equal(list.status, 0);
   assert.match(list.stdout, /SHOP-101/);

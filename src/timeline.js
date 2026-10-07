@@ -66,8 +66,9 @@ export function buildTimeline(tasks, opts = {}) {
   const slots = repoSlots(tasks.flatMap((t) => (t.activity || []).map((c) => c.project)));
   const generatable = tasks.filter((t) => t.generatable);
   const coverage = { ready: generatable.filter((t) => t.has_capsule).length, total: generatable.length };
-  const from = isDay(opts.from) ? opts.from : null;
-  const to = isDay(opts.to) ? opts.to : null;
+  let from = isDay(opts.from) ? opts.from : null;
+  let to = isDay(opts.to) ? opts.to : null;
+  if (from && to && from > to) [from, to] = [to, from]; // a reversed range means the same days: never an empty chart for it
   const wanted = Array.isArray(opts.keys) ? new Set(opts.keys) : null;
 
   const matching = [];
@@ -114,5 +115,11 @@ export function buildTimeline(tasks, opts = {}) {
     repos: present.map((name) => ({ name, slot: slots.has(name) ? slots.get(name) : -1 })),
     all_repos: [...slots.keys()],
     lanes, total: matching.length, shown: lanes.length, hidden: matching.length - lanes.length, undated, coverage,
+    // "tasks" are the ones that can have a capsule (what the coverage ring counts); sessions without a task key are a separate group
+    task_total: matching.filter((m) => m.task.generatable !== false).length,
+    task_shown: lanes.filter((l) => l.generatable).length,
+    unassigned_total: matching.filter((m) => m.task.generatable === false).length,
+    unassigned_shown: lanes.filter((l) => !l.generatable).length,
+    applied: { from, to },
   };
 }

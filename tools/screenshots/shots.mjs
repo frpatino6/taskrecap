@@ -294,6 +294,63 @@ await check('timeline: a search narrows the lanes to the matching tasks', async 
   assert.equal(await p.locator('.vz-label').first().getAttribute('data-key'), 'API-212');
   await p.context().close();
 });
+await check('timeline: the footer counts the same tasks as the coverage ring; sessions without a task key are named apart', async () => {
+  const p = await newPage('light', null, { view: null });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  assert.match(await p.locator('#coverage-text').innerText(), /of 13 tasks/);
+  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 12 of 13 tasks');
+  await p.click('#vz-more');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 14);
+  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 13 of 13 tasks, plus sessions without a task key');
+  await p.context().close();
+});
+await check('timeline: date boxes only appear for a custom period, a reversed range is swapped, an empty result offers a reset', async () => {
+  const p = await newPage('light', null, { view: null });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  assert.equal(await p.locator('#vz-period option').count(), 5);
+  assert.equal(await p.locator('#vz-from').isHidden(), true, 'date boxes hidden until "Custom range"');
+  await p.selectOption('#vz-period', 'custom');
+  assert.equal(await p.locator('#vz-from').isVisible(), true);
+  await p.fill('#vz-from', '2026-09-10');
+  await p.fill('#vz-to', '2026-09-02');
+  await p.waitForFunction(() => document.getElementById('vz-from').value === '2026-09-02');
+  assert.equal(await p.inputValue('#vz-to'), '2026-09-10');
+  assert.match(await p.locator('#vz-msg').innerText(), /swapped/);
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length > 0);
+  await p.fill('#vz-from', '2000-01-01');
+  await p.fill('#vz-to', '2000-01-02');
+  await p.waitForSelector('#vz-empty-reset');
+  await p.click('#vz-empty-reset');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 12);
+  assert.equal(await p.inputValue('#vz-period'), 'all');
+  assert.equal(await p.locator('#vz-custom').isHidden(), true);
+  await p.context().close();
+});
+await check('timeline: a search with no hits hides the chart and offers the AI search instead', async () => {
+  const p = await newPage('light', null, { view: null });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  await p.fill('#q', 'zzzzqqqq');
+  await p.waitForFunction(() => !document.getElementById('nonewrap').hidden);
+  assert.equal(await p.locator('#timeline').isHidden(), true, 'no empty chart under a failed search');
+  assert.match(await p.locator('#none').innerText(), /No tasks match/);
+  assert.equal(await p.locator('#none-extra').isVisible(), true);
+  await p.fill('#q', '');
+  await p.waitForSelector('.vz-lane');
+  await p.context().close();
+});
+await check('timeline: keeps working when localStorage is blocked', async () => {
+  const p = await newPage('light', () => { Object.defineProperty(window, 'localStorage', { get() { throw new Error('denied'); } }); }, { view: null });
+  await p.goto(base);
+  await p.waitForSelector('.vz-lane');
+  await p.click('#view-cards');
+  await p.waitForSelector('#grid .card');
+  await p.click('#view-timeline');
+  await p.waitForSelector('.vz-lane');
+  await p.context().close();
+});
 await check('timeline screenshots (light and dark)', async () => {
   await timelineShot('light', 'timeline-light.png');
   await timelineShot('dark', 'timeline-dark.png');

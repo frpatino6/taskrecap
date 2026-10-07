@@ -60,7 +60,7 @@
   "mode_free": "Free · local",
   "mode_free_hint": "No tokens are used",
   "mode_ai": "✨ AI · uses tokens",
-  "search_note": "Normal search is literal: it matches the exact words you type in task names, first prompts and saved capsules. ✨ AI search finds meaning (for example \"payment retry\" can find a task about \"checkout resubmit\"), but it uses tokens, so you see an estimate first.",
+  "search_note": "Free search matches the exact words you type. ✨ AI search understands meaning (it shows an estimate first and uses tokens).",
   "ai_search": "✨ Improve with AI: search by meaning",
   "ai_search_empty": "Type what you are looking for first.",
   "ai_estimate_text": "Estimated: about {tokens} tokens, {usd}, over {tasks} tasks. This is a rough estimate; the real usage is shown afterwards.",
@@ -222,5 +222,15 @@
   "coverage_title": "Show only the tasks without a capsule",
   "coverage_filter_on": "Showing only tasks without a capsule",
   "coverage_clear": "Show all tasks",
-  "coverage_label": "Capsule coverage"
+  "coverage_label": "Capsule coverage",
+  "tl_showing_unassigned": "Showing {shown} of {total} tasks, plus sessions without a task key",
+  "tl_undated": "{n} without dated activity are not on the timeline",
+  "tl_empty_reset": "Reset filters",
+  "tl_period": "Period",
+  "tl_period_all": "All time",
+  "tl_period_7": "Last 7 days",
+  "tl_period_30": "Last 30 days",
+  "tl_period_90": "Last 90 days",
+  "tl_period_custom": "Custom range…",
+  "tl_range_swapped": "From was after To, so the two dates were swapped."
 }

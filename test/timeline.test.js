@@ -244,3 +244,37 @@ test('GET /api/timeline serves the layout; /api/tasks stays light (no activity)'
     srv.server.close();
   }
 });
+
+test('"tasks" counts match the coverage ring: sessions without a task key are reported apart', () => {
+  const tasks = [
+    task('A-1', [cell(9, 1, 1)], { has_capsule: true }),
+    task('A-2', [cell(9, 2, 1)]),
+    task('unassigned', [cell(9, 3, 1)], { kind: 'unassigned', generatable: false }),
+  ];
+  const tl = buildTimeline(tasks);
+  assert.deepEqual(tl.coverage, { ready: 1, total: 2 });
+  assert.deepEqual([tl.task_shown, tl.task_total], [2, tl.coverage.total]); // the footer and the ring talk about the same tasks
+  assert.deepEqual([tl.unassigned_shown, tl.unassigned_total], [1, 1]);
+  assert.deepEqual([tl.shown, tl.total], [3, 3]); // lanes drawn (what "show more" counts) still include the unassigned one
+  const noUnassigned = buildTimeline(tasks.slice(0, 2));
+  assert.deepEqual([noUnassigned.unassigned_shown, noUnassigned.unassigned_total], [0, 0]);
+  const limited = buildTimeline(tasks, { limit: 1 });
+  assert.deepEqual([limited.task_shown, limited.task_total, limited.unassigned_total], [1, 2, 1]);
+});
+
+test('a reversed date range selects the same days as the ordered one and reports the range it applied', () => {
+  const tasks = [task('A-1', [cell(9, 1, 1), cell(9, 20, 1)]), task('A-2', [cell(9, 5, 1)])];
+  const ordered = buildTimeline(tasks, { from: d(9, 3), to: d(9, 10) });
+  const reversed = buildTimeline(tasks, { from: d(9, 10), to: d(9, 3) });
+  assert.deepEqual(reversed.lanes, ordered.lanes);
+  assert.deepEqual(reversed.range, ordered.range);
+  assert.deepEqual(reversed.applied, { from: d(9, 3), to: d(9, 10) });
+  assert.deepEqual(buildTimeline(tasks).applied, { from: null, to: null });
+});
+
+test('tasks without dated activity are counted, not drawn, and never break the totals', () => {
+  const tl = buildTimeline([task('A-1', [cell(9, 1, 1)]), task('A-2', []), task('A-3', undefined)]);
+  assert.equal(tl.undated, 2);
+  assert.deepEqual([tl.shown, tl.total, tl.task_shown, tl.task_total], [1, 1, 1, 1]);
+  assert.equal(tl.coverage.total, 3); // the ring still counts every task that can have a capsule
+});

@@ -29,3 +29,9 @@ test('migrateLegacyHome does nothing when the new folder exists or there is no o
   assert.deepEqual(fs.readdirSync(existing), []);
   assert.equal(migrateLegacyHome(path.join(tmpDir(), 'new'), path.join(tmpDir(), 'missing')), false);
 });
+
+test('the reported version is the one in package.json, so a release can never print a stale number', async () => {
+  const { VERSION } = await import('../src/config.js');
+  const pkg = JSON.parse((await import('node:fs')).readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(VERSION, pkg.version);
+});

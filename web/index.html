@@ -250,6 +250,14 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
 .vzfilters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .vzfilters label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
 .vzfilters select, .vzfilters input { font: inherit; font-size: 14px; color: var(--text); background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 6px 10px; max-width: 180px; }
+.vzcustom { display: inline-flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.vzcustom[hidden] { display: none; }
+.vzmsg { font-size: 13px; color: var(--muted); }
+.vzmsg:empty { display: none; }
+.vzfilters input[type="date"] { color-scheme: light; }
+:root[data-theme="dark"] .vzfilters input[type="date"] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .vzfilters input[type="date"] { color-scheme: dark; } }
+.vz-empty .cta { margin-left: 10px; }
 .vzfilters select:focus, .vzfilters input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .capfilter { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 4px 6px 4px 12px; }
 .capfilter button { border: none; background: var(--surface); color: var(--accent); border-radius: 999px; font-weight: 700; font-size: 12.5px; padding: 3px 10px; }
@@ -329,9 +337,13 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
       </div>
       <div class="vzfilters" id="vzfilters">
         <label><span id="vz-repo-label"></span><select id="vz-repo"></select></label>
-        <label><span id="vz-from-label"></span><input type="date" id="vz-from"></label>
-        <label><span id="vz-to-label"></span><input type="date" id="vz-to"></label>
+        <label><span id="vz-period-label"></span><select id="vz-period"></select></label>
+        <span class="vzcustom" id="vz-custom" hidden>
+          <label><span id="vz-from-label"></span><input type="date" id="vz-from"></label>
+          <label><span id="vz-to-label"></span><input type="date" id="vz-to"></label>
+        </span>
         <button class="cta ghost sm" type="button" id="vz-reset"></button>
+        <span class="vzmsg" id="vz-msg" role="status"></span>
       </div>
       <span class="capfilter" id="capfilter" hidden><span id="capfilter-text"></span><button type="button" id="capfilter-clear"></button></span>
     </div>
@@ -396,6 +408,9 @@ function applyStatic() {
   $("view-timeline").textContent = S.view_timeline;
   $("view-cards").textContent = S.view_cards;
   $("vz-repo-label").textContent = S.tl_repo;
+  $("vz-period-label").textContent = S.tl_period;
+  $("vz-period").innerHTML = [["all", S.tl_period_all], ["7", S.tl_period_7], ["30", S.tl_period_30], ["90", S.tl_period_90], ["custom", S.tl_period_custom]]
+    .map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("");
   $("vz-from-label").textContent = S.tl_from;
   $("vz-to-label").textContent = S.tl_to;
   $("vz-reset").textContent = S.tl_reset;
@@ -466,7 +481,7 @@ function bindCards(root) {
 // ---------- home: cards or timeline ----------
 let VIEW = "timeline"; // remembered between visits
 try { if (localStorage.getItem("tr-view") === "cards") VIEW = "cards"; } catch (e) { /* storage blocked: default view */ }
-const VZ = { repo: "", from: "", to: "", limit: 12, noCapsule: false }; // timeline filters; the capsule filter also narrows the cards
+const VZ = { repo: "", period: "all", from: "", to: "", limit: 12, noCapsule: false }; // timeline filters; the capsule filter also narrows the cards
 let TL = null;
 let tlSeq = 0;
 
@@ -504,17 +519,25 @@ function renderHome() {
   $("view-cards").setAttribute("aria-pressed", String(!timeline));
   $("vzfilters").hidden = !timeline;
   $("capfilter").hidden = !VZ.noCapsule;
-  $("timeline").hidden = !timeline;
+  $("timeline").hidden = !timeline || !!(HITS && !list.length);
   renderCoverage();
-  if (timeline) loadTimeline();
+  if (timeline && !(HITS && !list.length)) loadTimeline();
 }
 
 // ---------- timeline ----------
+const localDay = (offsetDays) => { const d = new Date(); d.setDate(d.getDate() - offsetDays); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+/** The days the timeline is filtered to: a preset counts back from today, "custom" uses the two date boxes. */
+function vzRange() {
+  if (VZ.period === "custom") return { from: VZ.from, to: VZ.to };
+  const n = Number(VZ.period);
+  return n > 0 ? { from: localDay(n - 1), to: "" } : { from: "", to: "" };
+}
 function tlQuery() {
   const q = new URLSearchParams();
   if (VZ.repo) q.set("repo", VZ.repo);
-  if (VZ.from) q.set("from", VZ.from);
-  if (VZ.to) q.set("to", VZ.to);
+  const range = vzRange();
+  if (range.from) q.set("from", range.from);
+  if (range.to) q.set("to", range.to);
   if (VZ.noCapsule) q.set("capsule", "none");
   if (HITS) q.set("keys", [...HITS.keys()].join("\n")); else q.set("limit", String(VZ.limit));
   return q.toString();
@@ -560,7 +583,11 @@ function renderTimeline() {
     named.map((r) => `<li><span class="vz-sw s${r.slot}" aria-hidden="true"></span>${esc(r.name)}</li>`).join("") +
     (others.length ? `<li title="${esc(others.map((r) => r.name).join(", "))}"><span class="vz-sw" aria-hidden="true"></span>${esc(S.tl_legend_other)} (${others.length})</li>` : "") + "</ul>";
   const head = `<div class="vz-head"><h2 id="vz-title">${esc(S.tl_title)}</h2><p>${esc(S.tl_hint)}</p>${tl.repos.length ? legend : ""}</div>`;
-  if (!tl.lanes.length) { el.innerHTML = head + `<p class="vz-empty" role="status">${esc(S.tl_empty)}</p>`; return; }
+  if (!tl.lanes.length) {
+    const filtered = VZ.repo || VZ.period !== "all" || VZ.noCapsule;
+    el.innerHTML = head + `<p class="vz-empty" role="status">${esc(S.tl_empty)}${filtered ? ` <button type="button" class="cta ghost sm" id="vz-empty-reset">${esc(S.tl_empty_reset)}</button>` : ""}</p>`;
+    return;
+  }
   const grid = (ticks) => ticks.map((t) => `<i class="vz-gl" style="left:${t.x}%"></i>`).join("");
   const lane = (l) => {
     const marks = l.marks.map((m, i) => {
@@ -581,7 +608,7 @@ function renderTimeline() {
   const more = tl.hidden > 0 ? `<button type="button" class="cta ghost sm" id="vz-more">${esc(fmt(S.tl_more, { n: Math.min(12, tl.hidden) }))}</button>` : "";
   el.innerHTML = head + `<div class="vz-scroll"><div class="vz-chart">
     <div class="vz-row" aria-hidden="true"><span class="vz-axis-pad"></span><div class="vz-ticks">${ticks}</div></div>${tl.lanes.map(lane).join("")}</div></div>
-    <div class="vz-foot"><span>${esc(fmt(S.tl_showing, { shown: tl.shown, total: tl.total }))}</span>${more}</div>
+    <div class="vz-foot"><span>${esc(fmt(tl.unassigned_shown ? S.tl_showing_unassigned : S.tl_showing, { shown: tl.task_shown, total: tl.task_total }))}${tl.undated ? " · " + esc(fmt(S.tl_undated, { n: tl.undated })) : ""}</span>${more}</div>
     <p class="note" style="margin:10px 18px 0">${esc(S.tl_note)}</p>` + table;
 }
 
@@ -602,6 +629,7 @@ function bindTimeline() {
   const laneOf = (key) => (TL ? TL.lanes.find((l) => l.key === key) : null);
   el.addEventListener("click", (e) => {
     if (e.target.closest("#vz-more")) { VZ.limit += 12; loadTimeline(); return; }
+    if (e.target.closest("#vz-empty-reset")) { resetVz(); return; }
     const t = e.target.closest("[data-key]");
     if (t) { hideTip(); location.hash = "#/task/" + encodeURIComponent(t.dataset.key); }
   });
@@ -631,18 +659,37 @@ function bindTimeline() {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTip(); });
 }
 
+function resetVz() {
+  Object.assign(VZ, { repo: "", period: "all", from: "", to: "", limit: 12 });
+  $("vz-period").value = "all"; $("vz-custom").hidden = true;
+  $("vz-from").value = ""; $("vz-to").value = ""; $("vz-msg").textContent = "";
+  loadTimeline();
+}
+
 function bindViewControls() {
   $("view-timeline").addEventListener("click", () => setView("timeline"));
   $("view-cards").addEventListener("click", () => setView("cards"));
   const refilter = () => { VZ.limit = 12; loadTimeline(); };
   $("vz-repo").addEventListener("change", () => { VZ.repo = $("vz-repo").value; refilter(); });
-  $("vz-from").addEventListener("change", () => { VZ.from = $("vz-from").value; refilter(); });
-  $("vz-to").addEventListener("change", () => { VZ.to = $("vz-to").value; refilter(); });
-  $("vz-reset").addEventListener("click", () => {
-    Object.assign(VZ, { repo: "", from: "", to: "", limit: 12 });
-    $("vz-from").value = ""; $("vz-to").value = "";
-    loadTimeline();
+  $("vz-period").addEventListener("change", () => {
+    VZ.period = $("vz-period").value;
+    $("vz-custom").hidden = VZ.period !== "custom";
+    $("vz-msg").textContent = "";
+    refilter();
   });
+  const onDates = () => {
+    VZ.from = $("vz-from").value; VZ.to = $("vz-to").value;
+    $("vz-msg").textContent = "";
+    if (VZ.from && VZ.to && VZ.from > VZ.to) { // reversed: swap the boxes so what you see is what is filtered
+      [VZ.from, VZ.to] = [VZ.to, VZ.from];
+      $("vz-from").value = VZ.from; $("vz-to").value = VZ.to;
+      $("vz-msg").textContent = S.tl_range_swapped;
+    }
+    refilter();
+  };
+  $("vz-from").addEventListener("change", onDates);
+  $("vz-to").addEventListener("change", onDates);
+  $("vz-reset").addEventListener("click", resetVz);
   const toggleCapsule = (on) => { VZ.noCapsule = on; renderHome(); };
   $("coverage").addEventListener("click", () => toggleCapsule(!VZ.noCapsule));
   $("capfilter-clear").addEventListener("click", () => toggleCapsule(false));
