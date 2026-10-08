@@ -4,7 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as capsule from './capsule.js';
 import { APP_NAME, APP_TITLE, DEFAULT_KEY_REGEX, VERSION } from './config.js';
-import { checkClaude, publicStatus } from './claude.js';
+import { checkClaude, cachedClaude, publicStatus, refreshClaude } from './claude.js';
+import { UserError } from './errors.js';
 import { Aborted, estimateCost, extractJson, askLlm, isAbort } from './llm.js';
 import { readEvidence, parseSources, resolveSession, withRowTimes } from './evidence.js';
 import { FileIndex } from './files.js';
@@ -60,13 +61,9 @@ export class Busy extends Error {
   }
 }
 
-/** Bad input from the user (maps to HTTP 400). */
-export class UserError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'UserError';
-  }
-}
+export { UserError }; // defined in errors.js so llm.js can raise it too; same class, same instanceof
+
+const INJECTED_AI = { available: true, path: null, version: null, via: 'injected', reason: null, tried: [], message: null };
 
 export class App {
   /**
@@ -113,12 +110,30 @@ export class App {
   }
 
   /**
-   * Can the AI actions run? Claude Code found and starting (cached; `force` re-checks). Free browsing never depends on it.
-   * An injected `ask` (tests, embedding) counts as available. -> {available, path, version, via, reason, tried, message}
+   * Can the AI actions run? Claude Code found and starting (cached 60 s, one shared probe at a time). Awaits the check:
+   * for the CLI and `doctor`. Free browsing never depends on it. An injected `ask` (tests, embedding) counts as available.
+   * -> {available, path, version, via, reason, tried, message}
    */
-  async aiStatus(force = false) {
-    if (this.rawAsk) return { available: true, path: null, version: null, via: 'injected', reason: null, tried: [], message: null };
-    return publicStatus(await checkClaude({ force }));
+  async aiStatus() {
+    if (this.rawAsk) return INJECTED_AI;
+    return publicStatus(await checkClaude());
+  }
+
+  /**
+   * The page's view of it: NEVER waits for a check. Returns the last answer (stale or not) at once and refreshes in the
+   * background; before the first answer it is `{available: null, checking: true}` and the page asks again a moment later.
+   */
+  aiStatusCached() {
+    if (this.rawAsk) return INJECTED_AI;
+    const known = cachedClaude();
+    if (!known || !known.fresh) refreshClaude(); // shared with a probe that is already running
+    return known ? publicStatus(known.value) : { available: null, checking: true, path: null, version: null, via: null, reason: null, tried: [], message: null };
+  }
+
+  /** "Check again": a real re-check (shared with a running one, at most one new probe every couple of seconds). */
+  async recheckAi() {
+    if (this.rawAsk) return INJECTED_AI;
+    return publicStatus(await checkClaude({ force: true }));
   }
 
   /** Strings for a UI language the user picked in the page; anything not in the whitelist gets the server's own language. */

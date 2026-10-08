@@ -80,12 +80,7 @@ async function renderDetail(key, { animate = false } = {}) {
   if (resume) resume.addEventListener("click", () => copyBriefing(resume, (cap.capsule || {}).briefing || ""));
   const gen = $("gen");
   if (gen) gen.addEventListener("click", () => startGenerate(key));
-  if (gen && !aiOn()) { // Claude Code not found: no dead button, an explanation and a way to check again
-    gen.disabled = true;
-    gen.title = S.ai_off_tooltip;
-    const gb = $("genbox");
-    if (gb) { gb.innerHTML = aiOffHtml(); bindAiRecheck(gb); }
-  }
+  applyAiGate(); // the generate button and, when Claude Code is missing, the note and "Check again" under it
   el.querySelectorAll(".filelink").forEach((b) => b.addEventListener("click", () => showFileTasks(b.dataset.file, key)));
   bindSessions(d);
 }
@@ -208,15 +203,17 @@ async function copyBriefing(btn, text) {
 }
 
 async function startGenerate(key) {
-  const box = $("genbox"), gen = $("gen");
-  gen.disabled = true;
+  if (!aiOn()) { applyAiGate(); return; } // Claude Code is not (or not yet known to be) there: never start a request
+  const box = $("genbox");
+  setAiBusy("gen", true);
   box.innerHTML = html`<p>${S.estimate_loading}</p>`;
   try {
     const e = await api("/api/estimate?key=" + encodeURIComponent(key));
     box.innerHTML = html`<p style="margin-top:12px">${fmt(S.estimate_text, { tokens: fmtTokens(e.input_tokens + e.output_tokens), usd: "~" + usd(e.usd), seconds: e.seconds, calls: e.calls, sessions: e.sessions })}</p>
       <div class="row"><button class="cta ai" id="ok" type="button">${S.confirm_generate}</button><button class="cta ghost" id="no" type="button">${S.cancel}</button></div>`;
-    $("no").addEventListener("click", () => { box.innerHTML = ""; gen.disabled = false; });
+    $("no").addEventListener("click", () => { box.innerHTML = ""; setAiBusy("gen", false); });
     $("ok").addEventListener("click", () => {
+      if (!aiOn()) { box.innerHTML = ""; setAiBusy("gen", false); applyAiGate(); return; }
       runAiAction({
         box, path: "/api/generate", body: { key, confirm: true }, title: fmt(S.progress_generating, { key }),
         onDone: async (res) => {
@@ -228,14 +225,14 @@ async function startGenerate(key) {
           TASKS = (await api("/api/tasks")).tasks;
           refreshUsage();
         },
-        onEnd: () => { const g = $("gen"); if (g) g.disabled = false; },
+        onEnd: () => { setAiBusy("gen", false); },
         onRetry: () => startGenerate(key),
       });
     });
   } catch (err) {
     box.innerHTML = html`<p class="err" role="alert">${S.error_prefix} ${err.message}</p><div class="row"><button class="cta ai sm" id="gen-retry" type="button">${S.error_retry}</button></div>`;
     $("gen-retry").addEventListener("click", () => startGenerate(key)); // the estimate failed: nothing was spent, asking again is safe
-    gen.disabled = false;
+    setAiBusy("gen", false);
   }
 }
 

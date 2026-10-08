@@ -164,8 +164,8 @@ async function handleGet(app, url, route, res) {
     const [file, ctype] = WEB_ASSETS[route];
     return send(res, 200, fs.readFileSync(path.join(WEB_DIR, file)), ctype);
   }
-  if (route === '/api/info') return send(res, 200, { ...app.info(), ai: await app.aiStatus() });
-  if (route === '/api/ai') return send(res, 200, await app.aiStatus(url.searchParams.get('force') === '1')); // "check again" after installing Claude Code
+  if (route === '/api/info') return send(res, 200, { ...app.info(), ai: app.aiStatusCached() }); // never waits for Claude Code
+  if (route === '/api/ai') return send(res, 200, app.aiStatusCached()); // read-only: the re-check is POST /api/ai/recheck
   if (route === '/api/strings') return send(res, 200, app.stringsFor(url.searchParams.get('lang')));
   if (route === '/api/langs') return send(res, 200, { langs: listLangs() });
   if (route === '/api/usage') return send(res, 200, app.usageSnapshot());
@@ -193,6 +193,11 @@ async function handleGet(app, url, route, res) {
 }
 
 async function handlePost(app, req, route, res) {
+  if (route === '/api/ai/recheck') { // "Check again" after installing Claude Code: JSON only, so a plain cross-site form cannot trigger it
+    if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
+    await readJson(req);
+    return send(res, 200, await app.recheckAi());
+  }
   const isGenerate = route === '/api/generate';
   const isAiSearch = route === '/api/ai-search';
   if (!isGenerate && !isAiSearch) return sendError(res, 404, 'Not found');

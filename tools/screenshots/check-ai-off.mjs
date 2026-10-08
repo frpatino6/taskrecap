@@ -66,7 +66,10 @@ await check('task without a capsule: the generate button is disabled too', async
   assert.equal(await page.locator('#gen').isDisabled(), true);
 });
 
+const afterThrottle = () => page.waitForTimeout(2300); // a forced re-check reuses a probe younger than 2 s
+
 await check('"Check again" while it is still missing says so and keeps AI off', async () => {
+  await afterThrottle();
   await page.locator('#genbox .ai-recheck').click();
   await page.waitForFunction(() => /Still not available/.test(document.querySelector('#genbox .ai-recheck-msg').textContent));
   assert.equal(await page.locator('#gen').isDisabled(), true);
@@ -76,6 +79,7 @@ await check('after Claude Code is installed, "Check again" turns the AI actions 
   fs.mkdirSync(path.dirname(fake), { recursive: true });
   fs.writeFileSync(fake, `#!${process.execPath}\nconsole.log('2.0.0 (Claude Code)');\n`);
   fs.chmodSync(fake, 0o755);
+  await afterThrottle();
   await page.locator('#genbox .ai-recheck').click();
   await page.waitForFunction(() => !document.querySelector('#gen')?.disabled && !document.querySelector('.ai-off'));
   await page.goto(base);
@@ -86,7 +90,8 @@ await check('after Claude Code is installed, "Check again" turns the AI actions 
 
 await check('phone width: the note does not overflow the page', async () => {
   fs.rmSync(fake);
-  await page.request.get(base + 'api/ai?force=1');
+  await afterThrottle();
+  await page.request.post(base + 'api/ai/recheck', { data: {} });
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto(base);
   await page.waitForSelector('.ai-off');

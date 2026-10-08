@@ -11,6 +11,7 @@ import { expandUser } from './util.js';
 const WIN_EXT_ORDER = ['.exe', '.cmd', '.bat']; // a real executable beats a shim
 const VERSION_TIMEOUT_MS = 8000;
 const CACHE_MS = 60000;
+const FORCE_MIN_INTERVAL_MS = 2000; // a forced re-check ("Check again") may start a real probe at most this often
 const INSTALL_URL = 'https://claude.com/claude-code';
 
 const isWin = (platform) => platform === 'win32';
@@ -103,8 +104,27 @@ export function knownLocations({ env = process.env, platform = process.platform,
     j(home, '.bun', 'bin', 'claude'),
   ];
   const nvm = j(home, '.nvm', 'versions', 'node');
-  for (const v of readdir(nvm).sort().reverse()) out.push(j(nvm, v, 'bin', 'claude'));
+  for (const v of sortNodeVersions(readdir(nvm))) out.push(j(nvm, v, 'bin', 'claude'));
   return out;
+}
+
+/**
+ * Folder names such as `v22.2.0`, newest first, compared as numbers (a plain string sort puts v9 above v22).
+ * Names that are not versions go last, in reverse alphabetical order, and never break the sort.
+ */
+export function sortNodeVersions(names) {
+  const parse = (name) => {
+    const m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(String(name));
+    return m ? [Number(m[1]), Number(m[2] || 0), Number(m[3] || 0)] : null;
+  };
+  return [...(Array.isArray(names) ? names : [])].map(String).sort((a, b) => {
+    const pa = parse(a);
+    const pb = parse(b);
+    if (pa && pb) return pb[0] - pa[0] || pb[1] - pa[1] || pb[2] - pa[2] || (a < b ? 1 : a > b ? -1 : 0);
+    if (pa) return -1;
+    if (pb) return 1;
+    return a < b ? 1 : a > b ? -1 : 0;
+  });
 }
 
 /**
@@ -230,33 +250,67 @@ export function runVersion(file, { platform = process.platform, env = process.en
 
 // ---- status for the page, the CLI and the error messages ----
 
-let cache = null;
-export const clearClaudeCache = () => { cache = null; };
+let cache = null; // {key, at, value}: the last answer
+let inflight = null; // {key, promise}: a probe that is running right now, shared by every caller
+export const clearClaudeCache = () => { cache = null; inflight = null; };
+
+const statusKey = ({ override, env, platform }) => JSON.stringify([override || '', envVar(env, 'PATH', platform) || '', platform]);
+const currentCtx = (o = {}) => ({ override: o.override === undefined ? config.claudeOverride() : o.override, env: o.env || process.env, platform: o.platform || process.platform });
 
 /**
- * Is Claude Code usable? Located AND `--version` runs (cached 60 s; `force` re-checks). Login cannot be verified without
- * a paid call, so it is not checked here: an auth failure is reported by the call itself (see classifyFailure).
+ * The last answer without running anything: {value, fresh} or null when nothing was checked yet (or the override / PATH
+ * changed since). `fresh` is false once it is older than the cache time: the caller may show it and refresh in the background.
+ */
+export function cachedClaude(o = {}) {
+  if (!cache || cache.key !== statusKey(currentCtx(o))) return null;
+  return { value: cache.value, fresh: Date.now() - cache.at < CACHE_MS };
+}
+
+/** The path of the Claude Code found by the last successful check, or null: lets askLlm skip walking PATH on every call. */
+export function cachedClaudePath(o = {}) {
+  const c = cachedClaude(o);
+  return c && c.fresh && c.value.available ? c.value.path : null;
+}
+
+/**
+ * Is Claude Code usable? Located AND `--version` runs (cached 60 s). Login cannot be verified without a paid call, so it
+ * is not checked here: an auth failure is reported by the call itself (see classifyFailure).
+ * Concurrent callers share ONE running probe. `force` re-checks (the "Check again" button) but at most once per
+ * `minIntervalMs`: a loop of forced checks cannot start a stream of `claude --version` processes.
  * -> {available, path, short_path, version, via, reason, detail, tried[]}
  */
 export async function checkClaude({
   force = false, platform = process.platform, env = process.env, home = os.homedir(), override = config.claudeOverride(),
-  isFile = defaultIsFile, readdir = defaultReaddir, run = runVersion,
+  isFile = defaultIsFile, readdir = defaultReaddir, run = runVersion, minIntervalMs = FORCE_MIN_INTERVAL_MS,
 } = {}) {
-  const key = JSON.stringify([override || '', envVar(env, 'PATH', platform) || '', platform]);
-  if (!force && cache && cache.key === key && Date.now() - cache.at < CACHE_MS) return cache.value;
-  const found = locateClaude({ platform, env, home, override, isFile, readdir });
-  let value;
-  if (!found.path) {
-    value = { available: false, reason: found.reason, path: null, version: null, via: found.via || null, detail: null, tried: found.tried };
-  } else {
-    const r = await run(found.path, { platform, env });
-    value = r.ok
-      ? { available: true, reason: null, path: found.path, version: r.version, via: found.via, detail: null, tried: found.tried }
-      : { available: false, reason: 'not-working', path: found.path, version: null, via: found.via, detail: r.error, tried: found.tried };
-  }
-  value.short_path = value.path ? shortenPath(value.path, home, platform) : null;
-  cache = { key, at: Date.now(), value };
-  return value;
+  const key = statusKey({ override, env, platform });
+  const sameKey = cache && cache.key === key;
+  if (!force && sameKey && Date.now() - cache.at < CACHE_MS) return cache.value;
+  if (force && sameKey && Date.now() - cache.at < minIntervalMs) return cache.value; // just probed: that answer is current
+  if (inflight && inflight.key === key) return inflight.promise;
+  let promise;
+  promise = (async () => {
+    const found = locateClaude({ platform, env, home, override, isFile, readdir });
+    let value;
+    if (!found.path) {
+      value = { available: false, reason: found.reason, path: null, version: null, via: found.via || null, detail: null, tried: found.tried };
+    } else {
+      const r = await run(found.path, { platform, env });
+      value = r.ok
+        ? { available: true, reason: null, path: found.path, version: r.version, via: found.via, detail: null, tried: found.tried }
+        : { available: false, reason: 'not-working', path: found.path, version: null, via: found.via, detail: r.error, tried: found.tried };
+    }
+    value.short_path = value.path ? shortenPath(value.path, home, platform) : null;
+    cache = { key, at: Date.now(), value };
+    return value;
+  })().finally(() => { if (inflight && inflight.promise === promise) inflight = null; });
+  inflight = { key, promise };
+  return promise;
+}
+
+/** Start a check in the background (shared with any running one); resolves to the status, never rejects. */
+export function refreshClaude(o = {}) {
+  return checkClaude(o).catch(() => null);
 }
 
 /** One friendly paragraph for a status or a failure code. Plain text: the page and the terminal both show it. */
@@ -277,11 +331,64 @@ export function unavailableMessage(status) {
   }
 }
 
-/** Classify the text a failed `claude -p` printed: 'not-logged-in', 'not-found' (the shell could not find it) or null. */
-export function classifyFailure(text) {
-  const t = String(text || '');
-  if (/the term '[^']*' is not recognized|is not recognized as (an internal or external command|the name of a cmdlet)|command not found|no such file or directory.*claude|ENOENT/i.test(t)) return 'not-found';
-  if (/not logged in|please run \/login|run \/login|invalid api key|authentication_error|oauth token (has )?expired|unauthorized|\b401\b/i.test(t)) return 'not-logged-in';
+// What the failed process itself said, line by line, with anchored phrases. Never the model's answer, never loose words like
+// `401` or `unauthorized` (a Jira key such as ABC-401, a token count or a sentence of the model would match them).
+const NOT_FOUND_LINES = [
+  /(?:^|[:\s])the term '[^']*claude[^']*' is not recognized\b/i, // PowerShell
+  /^'[^']*claude[^']*' is not recognized as an internal or external command\b/i, // cmd.exe
+  /(?:^|[:\s])claude(?:\.cmd|\.exe)?: (?:command )?not found\s*$/i, // sh / bash: "sh: claude: command not found"
+];
+const NOT_LOGGED_IN_LINES = [
+  /\bnot logged in\b/i,
+  /\bplease run \/login\b/i,
+  /\binvalid api key\b/i,
+  /\bauthentication_error\b/i,
+  /\boauth token (?:has )?expired\b/i,
+  /^(?:api error:?\s*)?401\b.*\bunauthorized\b/i, // "401 Unauthorized" at the start of a line, not any 401 anywhere
+];
+const linesOf = (text) => String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+/**
+ * The error text Claude Code itself reports on STDOUT: with `--output-format json|stream-json` a failure is a result object
+ * with `is_error: true` and its message in `result`. A normal answer (`is_error` false) is model text and is never returned.
+ */
+export function cliErrorText(stdout) {
+  const s = String(stdout || '').trim();
+  if (!s) return '';
+  const pick = (o) => (o && typeof o === 'object' && o.is_error === true && typeof o.result === 'string' ? o.result : '');
+  try {
+    return pick(JSON.parse(s));
+  } catch {
+    // stream-json: one object per line, the closing {"type":"result"} line carries the outcome
+    const rows = s.split('\n');
+    for (let i = rows.length - 1; i >= 0; i--) {
+      try {
+        const o = JSON.parse(rows[i]);
+        if (o && o.type === 'result') return pick(o);
+      } catch { /* not a JSON line */ }
+    }
+    return '';
+  }
+}
+
+/** One safe line to show a user: no escape codes or control characters, one line, short, home folder shortened. */
+export function firstErrorLine(text, { home = os.homedir(), max = 200 } = {}) {
+  const line = linesOf(String(text || '').replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, ' '))[0] || '';
+  const shown = home ? line.split(home).join('~') : line;
+  return shown.replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+/**
+ * Classify why a `claude -p` call failed: 'not-found' (it could not be started), 'not-logged-in' or null (anything else).
+ * Looks ONLY at what the CLI reported: the OS error code, its stderr and, when it is an `is_error` result, that message on
+ * stdout. A plain string is read as stderr text.
+ */
+export function classifyFailure(input) {
+  const { stderr = '', stdout = '', errCode = '' } = typeof input === 'string' ? { stderr: input } : (input || {});
+  if (errCode === 'ENOENT') return 'not-found';
+  const lines = [...linesOf(stderr), ...linesOf(cliErrorText(stdout))];
+  if (lines.some((l) => NOT_FOUND_LINES.some((re) => re.test(l)))) return 'not-found';
+  if (lines.some((l) => NOT_LOGGED_IN_LINES.some((re) => re.test(l)))) return 'not-logged-in';
   return null;
 }
 

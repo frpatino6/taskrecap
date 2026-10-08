@@ -96,38 +96,77 @@ async function refreshUsage() {
 }
 
 // ---------- Claude Code missing? AI actions are switched off, with the way to fix it (free mode never depends on it) ----------
-const aiOn = () => !INFO.ai || INFO.ai.available !== false;
+// ONE place decides whether an AI button is clickable: disabled = an action is running OR Claude Code is not available.
+// Handlers only say "my action started / ended" (setAiBusy); the gate only says "Claude Code is / is not there" (INFO.ai).
+const aiState = () => (!INFO.ai || INFO.ai.available === true ? "on" : INFO.ai.available === false ? "off" : "checking");
+const aiOn = () => aiState() === "on";
+const AI_BUTTONS = { search: ["ai-search", "none-ai"], gen: ["gen"] }; // action -> the buttons that start it
+const aiBusy = new Set();
+function syncAiButtons() {
+  const state = aiState();
+  for (const [action, ids] of Object.entries(AI_BUTTONS)) {
+    for (const id of ids) {
+      const b = $(id);
+      if (!b) continue;
+      b.disabled = aiBusy.has(action) || state !== "on";
+      if (state === "off") b.title = S.ai_off_tooltip; else if (state === "checking") b.title = S.ai_checking_tooltip; else b.removeAttribute("title");
+    }
+  }
+}
+/** An AI action started (on = true) or ended (false). Ending re-enables its buttons only if Claude Code is available. */
+function setAiBusy(action, on) {
+  if (on) aiBusy.add(action); else aiBusy.delete(action);
+  syncAiButtons();
+}
 function aiOffHtml() {
   const a = INFO.ai || {};
-  const why = a.reason === "not-working" ? S.ai_off_not_working : a.reason === "override-not-found" ? S.ai_off_bad_override : S.ai_off_not_found;
+  const why = a.reason === "not-working" ? S.ai_off_not_working : a.reason === "override-not-found" ? S.ai_off_bad_override : a.reason === "unknown" ? S.ai_off_unknown : S.ai_off_not_found;
   const tried = (a.tried || []).length > 1 ? html`<p class="hint">${fmt(S.ai_off_tried, { places: a.tried.slice(0, 6).join(", ") })}</p>` : "";
   return html`<div class="panel ai-off" role="status"><h2>${S.ai_off_title}</h2><p>${why}</p>${tried}<h3>${S.ai_off_steps_title}</h3>
     <ul><li>${S.ai_off_step_install}</li><li>${S.ai_off_step_path}</li><li>${S.ai_off_step_doctor}</li></ul>
     <div class="row"><button class="cta ghost sm ai-recheck" type="button">${S.ai_off_recheck}</button><span class="hint ai-recheck-msg" role="status" aria-live="polite"></span></div></div>`;
 }
-/** Wires the "Check again" buttons inside `box`: asks the server to look for Claude Code again; when it is there, the page refreshes. */
+/** Wires the "Check again" buttons inside `box`: asks the server to look for Claude Code again (POST: it starts a real check); when it is there, the page refreshes. */
 function bindAiRecheck(box) {
   box.querySelectorAll(".ai-recheck").forEach((btn) => btn.addEventListener("click", async () => {
     const msg = box.querySelector(".ai-recheck-msg");
     btn.disabled = true;
     if (msg) msg.textContent = S.ai_off_checking;
-    try { INFO.ai = await api("/api/ai?force=1"); } catch (e) { if (msg) msg.textContent = e.message; btn.disabled = false; return; }
+    try { INFO.ai = await api("/api/ai/recheck", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); } catch (e) { if (msg) msg.textContent = e.message; btn.disabled = false; return; }
     if (aiOn()) { applyAiGate(); if (typeof route === "function") route(); return; }
     if (msg) msg.textContent = S.ai_off_still;
     btn.disabled = false;
   }));
 }
-/** Home page: disable the AI buttons and explain why (or clear the note when Claude Code is available). */
+/** Apply the Claude Code status to the page: the AI buttons, the explanation note on the home page, the one in the capsule view. */
 function applyAiGate() {
-  const off = !aiOn();
-  for (const id of ["ai-search", "none-ai"]) {
-    const b = $(id);
-    if (!b) continue;
-    b.disabled = off;
-    if (off) b.title = S.ai_off_tooltip; else b.removeAttribute("title");
-  }
+  const off = aiState() === "off";
+  syncAiButtons();
   const note = $("ai-note");
-  if (!note) return;
-  note.innerHTML = off ? aiOffHtml() : "";
-  if (off) bindAiRecheck(note);
+  if (note) {
+    note.innerHTML = off ? aiOffHtml() : "";
+    if (off) bindAiRecheck(note);
+  }
+  const box = $("genbox"); // capsule view: the same note, but never over an estimate or a running action
+  if (box && $("gen")) {
+    const shown = String(box.innerHTML || "").includes("ai-off");
+    if (off && !String(box.innerHTML || "").trim()) { box.innerHTML = aiOffHtml(); bindAiRecheck(box); }
+    else if (!off && shown) box.innerHTML = "";
+  }
+}
+/** The server did not know yet whether Claude Code is there (it answered `checking`): ask again until it does. */
+let aiPoll = null;
+function pollAiStatus() {
+  if (aiPoll || aiState() !== "checking") return;
+  let tries = 0;
+  aiPoll = setInterval(async () => {
+    tries += 1;
+    try { INFO.ai = await api("/api/ai"); } catch (e) { /* the next try asks again */ }
+    if (aiState() !== "checking" || tries >= 30) {
+      clearInterval(aiPoll);
+      aiPoll = null;
+      if (aiState() === "checking") INFO.ai = { available: false, reason: "unknown", tried: [] }; // gave up waiting: the buttons stay off, "Check again" is there
+      applyAiGate();
+    }
+  }, 600);
 }

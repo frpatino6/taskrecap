@@ -169,16 +169,21 @@ test('classifyFailure recognises "not logged in" and "claude is not recognized" 
 });
 
 test('mapFailure turns those into LLMUnavailable with the right code, and leaves other errors untouched', () => {
-  const login = mapFailure(new Error('claude -p failed (1): Please run /login'));
+  const login = mapFailure(Object.assign(new Error('Claude failed: Please run /login'), { stderr: 'Invalid API key · Please run /login' }));
   assert.ok(login instanceof LLMUnavailable);
   assert.equal(login.code, 'not-logged-in');
   assert.match(login.message, /not logged in/);
-  const lost = mapFailure(new Error("The term 'claude' is not recognized"), { tried: ['PATH', '~/x/claude'] });
+  const lost = mapFailure(Object.assign(new Error('x'), { stderr: "The term 'claude' is not recognized" }), { tried: ['PATH', '~/x/claude'] });
   assert.equal(lost.code, 'not-found');
   assert.match(lost.message, /--claude-path/);
   assert.match(lost.message, /TASKRECAP_CLAUDE/);
+  const cli = mapFailure(Object.assign(new Error('claude -p error: Invalid API key'), { cliText: 'Invalid API key · Please run /login' }));
+  assert.equal(cli.code, 'not-logged-in');
   const other = new Error('boom');
   assert.equal(mapFailure(other), other);
+  // the error MESSAGE alone is never read (it can hold model output): a message that says "not logged in" proves nothing
+  const noisy = new Error('claude -p failed: not logged in, please run /login');
+  assert.equal(mapFailure(noisy), noisy);
 });
 
 test('the friendly messages say what to do and never print the raw shell error', () => {
@@ -195,14 +200,14 @@ test('the friendly messages say what to do and never print the raw shell error',
 test('checkClaude: found + version ok -> available; found but --version fails -> not-working; nothing -> not-found', async () => {
   clearClaudeCache();
   const okRun = async () => ({ ok: true, version: '2.1.9', error: null });
-  const bad = await checkClaude({ ...WIN, ...fsOf(['C:\\Users\\bob\\bin\\claude.exe']), override: null, run: async () => ({ ok: false, version: null, error: 'EACCES' }), force: true });
+  const bad = await checkClaude({ ...WIN, ...fsOf(['C:\\Users\\bob\\bin\\claude.exe']), override: null, run: async () => ({ ok: false, version: null, error: 'EACCES' }), force: true, minIntervalMs: 0 });
   assert.equal(bad.available, false);
   assert.equal(bad.reason, 'not-working');
   assert.equal(bad.detail, 'EACCES');
   assert.equal(bad.short_path, '~\\bin\\claude.exe');
-  const none = await checkClaude({ ...WIN, ...fsOf([]), override: null, run: okRun, force: true });
+  const none = await checkClaude({ ...WIN, ...fsOf([]), override: null, run: okRun, force: true, minIntervalMs: 0 });
   assert.deepEqual([none.available, none.reason], [false, 'not-found']);
-  const good = await checkClaude({ ...WIN, ...fsOf(['C:\\Users\\bob\\bin\\claude.exe']), override: null, run: okRun, force: true });
+  const good = await checkClaude({ ...WIN, ...fsOf(['C:\\Users\\bob\\bin\\claude.exe']), override: null, run: okRun, force: true, minIntervalMs: 0 });
   assert.deepEqual([good.available, good.version, good.via], [true, '2.1.9', 'path']);
   clearClaudeCache();
 });
@@ -216,7 +221,7 @@ test('checkClaude caches the answer, and force re-checks (the "Check again" butt
   present.add('C:\\Users\\bob\\bin\\claude.exe');
   assert.equal((await checkClaude(opts)).available, false); // cached
   assert.equal(runs, 0);
-  assert.equal((await checkClaude({ ...opts, force: true })).available, true); // installed meanwhile
+  assert.equal((await checkClaude({ ...opts, force: true, minIntervalMs: 0 })).available, true); // installed meanwhile
   assert.equal(runs, 1);
   clearClaudeCache();
 });
@@ -300,7 +305,7 @@ test('--claude-path (setClaudePath) beats TASKRECAP_CLAUDE, which beats the olde
     delete process.env.TASKRECAP_CLAUDE;
     delete process.env.TASKRECAP_CLAUDE_BIN;
     assert.equal(config.claudeOverride(), null);
-    assert.equal(config.claudeBin(), 'claude');
+    assert.equal(config.claudeBin, undefined); // the old bare-'claude' resolver is gone: locateClaude is the only way
   } finally {
     config.setClaudePath(null);
     for (const [i, k] of ['TASKRECAP_CLAUDE', 'TASKRECAP_CLAUDE_BIN'].entries()) {
@@ -339,6 +344,8 @@ test('/api/info reports AI off (with the message and what was tried) when Claude
   clearClaudeCache();
   try {
     await withOverride(path.join(tmp, 'no-such', 'claude'), async () => {
+      await getJson(srv, '/api/info'); // may answer {checking: true}: it never waits for the check
+      await app.aiStatus(); // let the background check finish
       const info = (await getJson(srv, '/api/info')).body;
       assert.equal(info.ai.available, false);
       assert.equal(info.ai.reason, 'override-not-found');
@@ -439,10 +446,13 @@ test('page: with ai.available=false the AI buttons are disabled with a tooltip, 
   assert.equal(vm.runInContext('(INFO = {}, aiOn())', ctx), true); // an older server without the field: AI stays on
 });
 
-test('page: the capsule view disables the generate button and shows the same note when Claude Code is missing', () => {
+test('page: the capsule view applies the same gate (button + note + "Check again") through applyAiGate, and main.js polls while the server is still checking', () => {
   const detail = fs.readFileSync(path.join(WEB, 'js', 'detail.js'), 'utf8');
-  assert.match(detail, /!aiOn\(\)/);
-  assert.match(detail, /gen\.disabled = true;[\s\S]*aiOffHtml\(\)[\s\S]*bindAiRecheck\(gb\)/);
+  assert.match(detail, /applyAiGate\(\);/); // after each render of the capsule view
+  assert.doesNotMatch(detail, /\.disabled\s*=/); // handlers never write `disabled`: setAiBusy / the gate do
+  const core = fs.readFileSync(path.join(WEB, 'js', 'core.js'), 'utf8');
+  assert.match(core, /\$\("genbox"\)[\s\S]*aiOffHtml\(\)[\s\S]*bindAiRecheck\(box\)/);
   const main = fs.readFileSync(path.join(WEB, 'js', 'main.js'), 'utf8');
   assert.match(main, /applyAiGate\(\);/);
+  assert.match(main, /pollAiStatus\(\);/);
 });
