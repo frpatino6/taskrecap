@@ -350,5 +350,6 @@
   "split_msg": "Group split.",
   "empty_group_title": "Sessions without content ({n})",
   "empty_group_note": "Only greetings, commands or editor notes: nothing that says what the work was. They are kept here, folded, in case you need one.",
-  "tl_empty_folded": "{n} sessions without content are folded below"
+  "tl_empty_folded": "{n} sessions without content are folded below",
+  "empty_row_fallback": "Editor note or command, no message"
 }

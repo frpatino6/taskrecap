@@ -24,6 +24,11 @@ const ANY_TAG = /<\/?[a-z][\w:-]*(?:\s[^<>]*)?\/?>/gi;
 const COMMAND = /^\/[a-z][\w:-]*(?:\s+|$)/i;
 const GREETING = /^(?:hola|hi|hello|hey|buenas|buenos d[ií]as|buenas tardes|buenas noches|good (?:morning|afternoon|evening)|thanks|thank you|gracias|ok|okay)\b/i;
 
+/** `raw` without editor tags (<ide_opened_file>...), on one line: what a message says apart from what the editor added. */
+export function stripTags(raw) {
+  return String(raw || '').replace(TAG_BLOCK, ' ').replace(ANY_TAG, ' ').replace(/\s+/g, ' ').trim();
+}
+
 /** Number of words with at least one letter ("a1b2" counts, "12 34" does not). */
 export function wordCount(text) {
   return (String(text || '').match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) || []).filter((w) => /\p{L}/u.test(w)).length;

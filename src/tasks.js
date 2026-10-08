@@ -7,7 +7,7 @@ import {
 } from './sessions.js';
 import * as capsule from './capsule.js';
 import { isNoise } from './segment.js';
-import { buildUnits, cutTitle, emptyState, hasContent, isGeneratableKey, relatedUnits, sessionTitle } from './units.js';
+import { buildUnits, cutTitle, emptyState, hasContent, isGeneratableKey, relatedUnits, sessionTitle, stripTags } from './units.js';
 
 /**
  * When the user's own messages were written, in epoch ms (automatic ones such as "[Request interrupted" are left out):
@@ -42,7 +42,7 @@ export function summarizeSession(file, keyRegex, generic = GENERIC_BRANCHES) {
     first_ts: s.first_ts, last_ts: s.last_ts, n_prompts: prompts.length, size: s.size,
     branch: branches[0] || '', title: s.title,
     unit_title: sessionTitle(s), has_content: hasContent(s), // the name of a session unit, and whether it is more than noise
-    snippet: prompts.length ? redact(prompts[0].text).replace(/\n/g, ' ').slice(0, 140) : '',
+    snippet: prompts.length ? redact(stripTags(prompts[0].text)).slice(0, 140) : '', // editor tags are not part of what the user said
     mentions, days, mention_days: mentionDays, prompt_ts: times.all, mention_ts: mentionTimes,
   };
 }

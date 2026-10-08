@@ -259,7 +259,7 @@ await check('timeline: opens by default with one lane per task, legend, coverage
   assert.equal(await p.locator('.vz-lane').count(), 12, 'default limit is 12 lanes');
   assert.ok((await p.locator('.vz-mark').count()) >= 12, 'dots drawn');
   assert.equal(await p.locator('.vz-legend li').count(), 3, 'three repos in the legend');
-  assert.match(await p.locator('#vz-more').innerText(), /Show 2 more/);
+  assert.match(await p.locator('#vz-more').innerText(), /Show 6 more/);
   assert.match(await p.locator('#coverage-text').innerText(), /6 of 13 tasks have a capsule/);
   assert.equal(await p.locator('#grid .card').count(), 0, 'cards are not shown in the timeline view');
   assert.ok((await p.locator('.sr table tbody tr').count()) === 12, 'text alternative has a row per lane');
@@ -279,11 +279,11 @@ await check('timeline: hover tooltip, click opens the capsule, keyboard works on
   assert.match(await p.locator('#detail').innerText(), /SHOP-104/);
   await p.goBack();
   await p.waitForSelector('.vz-lane');
-  await p.locator('.vz-label[data-key="SHOP-101"]').focus();
+  await p.locator('.vz-label[data-key="DOCS-33"]').focus();
   await p.waitForSelector('#vz-tip:not([hidden])');
   await p.keyboard.press('Enter');
   await p.waitForSelector('#detail:not([hidden]) h1');
-  assert.match(await p.locator('#detail').innerText(), /SHOP-101/);
+  assert.match(await p.locator('#detail').innerText(), /DOCS-33/);
   await p.context().close();
 });
 await check('timeline: repo filter, show more, capsule coverage filter and Cards/Timeline toggle that persists', async () => {
@@ -291,12 +291,12 @@ await check('timeline: repo filter, show more, capsule coverage filter and Cards
   await p.goto(base);
   await p.waitForSelector('.vz-lane');
   await p.selectOption('#vz-repo', 'acme-api');
-  await p.waitForFunction(() => [...document.querySelectorAll('.vz-label')].every((b) => /^API-/.test(b.dataset.key)) && document.querySelectorAll('.vz-label').length >= 3);
-  assert.equal(await p.locator('.vz-lane').count(), 3, 'API-212, API-214 and API-216');
+  await p.waitForFunction(() => [...document.querySelectorAll('.vz-label')].every((b) => /^(API-|session:f[234]a)/.test(b.dataset.key)) && document.querySelectorAll('.vz-label').length >= 6);
+  assert.equal(await p.locator('.vz-lane').count(), 6, 'API-212, API-214, API-216 and the three sessions of the acme-api repo');
   await p.click('#vz-reset');
   await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 12);
   await p.click('#vz-more');
-  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 14);
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 18);
   await p.click('#coverage');
   await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 7 && !document.getElementById('capfilter').hidden);
   assert.equal(await p.locator('#coverage').getAttribute('aria-pressed'), 'true');
@@ -321,15 +321,15 @@ await check('timeline: a search narrows the lanes to the matching tasks', async 
   assert.equal(await p.locator('.vz-label').first().getAttribute('data-key'), 'API-212');
   await p.context().close();
 });
-await check('timeline: the footer counts the same tasks as the coverage ring; sessions without a task key are named apart', async () => {
+await check('timeline: the footer counts every unit with content; the coverage ring counts those that can have a capsule; sessions without content are named apart', async () => {
   const p = await newPage('light', null, { view: null });
   await p.goto(base);
   await p.waitForSelector('.vz-lane');
   assert.match(await p.locator('#coverage-text').innerText(), /of 13 tasks/);
-  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 12 of 13 tasks');
+  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 12 of 18 tasks · 4 sessions without content are folded below');
   await p.click('#vz-more');
-  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 14);
-  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 13 of 13 tasks, plus sessions without a task key');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 18);
+  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 18 of 18 tasks · 4 sessions without content are folded below');
   await p.context().close();
 });
 await check('timeline: date boxes only appear for a custom period, a reversed range is swapped, an empty result offers a reset', async () => {
@@ -450,8 +450,8 @@ await check('outdated capsule (SHOP-105): chip on the card, marker on the timeli
   await p.waitForSelector('.vz-lane');
   const marker = p.locator('.vz-label[data-key="SHOP-105"] i.vz-stale');
   assert.equal(await marker.count(), 1, 'lane marker for the outdated capsule');
-  assert.equal(await p.locator('.vz-label[data-key="SHOP-101"] i.vz-stale').count(), 0);
-  assert.equal(await p.locator('.vz-label[data-key="SHOP-101"] i:not(.vz-stale)').count(), 1, 'the ✓ stays for ready capsules');
+  assert.equal(await p.locator('.vz-label[data-key="SHOP-104"] i.vz-stale').count(), 0);
+  assert.equal(await p.locator('.vz-label[data-key="SHOP-104"] i:not(.vz-stale)').count(), 1, 'the ✓ stays for ready capsules');
   assert.equal(await p.locator('.vz-label[data-key="SHOP-105"] i:not(.vz-stale)').count(), 1, 'the ✓ stays for the outdated one too');
   await p.goto(base + '#/task/SHOP-105');
   await p.waitForSelector('#detail .stale');

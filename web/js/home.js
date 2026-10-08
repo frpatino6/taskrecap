@@ -13,7 +13,7 @@ function card(t, extra) {
     (t.has_capsule && t.outdated ? `<span class="chip warn" title="${esc(fmt(S.stale_tip, { n: t.new_messages }))}">${esc(fmt(S.stale_chip, { n: t.new_messages }))}</span>` : "");
   return `<div class="cardwrap" role="listitem"><button class="card" data-key="${esc(t.key)}" type="button">
     <span class="t">${esc(kindLabel(t.kind))}${t.renamed && t.kind !== "user" ? " · " + esc(t.key) : ""}</span>
-    <span class="k">${esc(title)}</span>
+    <span class="k${t.kind === "session" || t.kind === "user" ? " kname" : ""}">${esc(title)}</span>
     <span class="s">${esc(t.objective || (t.kind === "session" && t.label ? "" : t.snippet))}</span>
     ${extra.reason ? `<span class="reason">${esc(extra.reason)}</span>` : ""}
     ${extra.hit ? hitHtml(extra.hit) : ""}

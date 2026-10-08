@@ -98,14 +98,41 @@ Every AI action shows an **estimate (tokens and dollars) first and needs your co
 
 ## How task detection works
 
-Each session gets a task key, in layers, and the tool **never invents one**:
+Everything you see on the home page is a **work unit**. Each session joins a unit in layers, and the tool **never invents a key**:
 
 1. A key found in the git branch name (default pattern `ABC-123`, Jira style).
 2. The most frequent key in your prompts and commit commands.
-3. The branch name itself, when it is not `main`/`master`/`develop`.
-4. Otherwise the session is shown as **unassigned**.
+3. The branch name itself, when it is not a generic one (`main`, `master`, `develop`, ... plus any you add).
+4. Otherwise the session is its **own unit**, listed as *Unsorted* and named after Claude Code's own title for it or, failing that, the first meaningful message you wrote (at most 80 characters). **Nothing is ever merged automatically.**
 
-The key pattern is just a regex: `--key-regex` or `TASKRECAP_KEY_REGEX` (for example `#\d+` for GitHub issues). There is no Jira dependency.
+A session whose messages are only greetings, slash commands, editor notes or fewer than four words ("hola", "resume", "/code-review") says nothing about the work: those are folded into one collapsed group, **Sessions without content**, which you can still open.
+
+Same repo and written within two hours of each other? The cards show a small *Related* hint. It is only a hint: free similarity checks (text, files) did not separate tasks reliably in our measurements, so nothing is grouped for you.
+
+You are in charge: from the **⋯** menu of any card, timeline lane or unit page you can **rename** a unit, **merge** units into a group of yours, **move** a session to another unit or to a new group, **split** a group back, and **hide** units or sessions (they stay under *Hidden*). Every change has an **Undo**, is saved next to your capsule cache (never inside the Claude folders), always wins over the automatic grouping and is kept when new sessions arrive. Capsules for units without a task key (single sessions and groups) are not available yet.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/units-cards-light.png" alt="Sessions without a task key are listed one by one as Unsorted, named after their first meaningful message, with a Related hint when two were written close together in the same repo"></td>
+    <td width="50%"><img src="docs/screenshots/units-merge-dialog-light.png" alt="Merging two units into a group of your own, with a name; capsules stay saved and the change can be undone"></td>
+  </tr>
+</table>
+
+### Settings
+
+No Jira required. Put your own patterns in `~/.taskrecap/config.json`:
+
+```json
+{
+  "keyPatterns": ["\\b[A-Z][A-Z0-9]{1,9}-\\d{1,6}\\b", "#\\d{2,6}\\b"],
+  "ignoreBranches": ["staging", "qa"]
+}
+```
+
+- `keyPatterns`: a list of regular expressions (any of them makes a key). Default: Jira style, `ABC-123`.
+- `ignoreBranches`: branch names that mean "no task", in addition to `main`, `master`, `HEAD`, `develop` and `dev`.
+- Instead of the file: `--key-regex` or `TASKRECAP_KEY_REGEX` (one pattern), `TASKRECAP_KEY_PATTERNS` (a JSON array), `--ignore-branches a,b` or `TASKRECAP_IGNORE_BRANCHES`. Precedence: flag, then environment, then the file, then the default.
+- A bad pattern or a broken file is an error that says which setting is wrong; `npx taskrecap doctor` shows what is in force.
 
 Real sessions often mix several tasks, so for a key cited inside a longer session the tool asks Claude (3 votes, union of the answers, for stability) which turns belong to the task. Cheap heuristics (time gaps, new keys, topic shift) propose the candidate boundaries.
 
@@ -121,12 +148,13 @@ A capsule takes 1 call to write plus, for multi-task sessions, up to 3 short cal
 | `--port <n>` | dashboard port (default 8765; the next free one is used if busy) |
 | `--projects-dir <dir>` | where Claude Code stores sessions (default `~/.claude/projects`, or `$CLAUDE_CONFIG_DIR/projects`) |
 | `--claude-path <path>` | full path to the `claude` executable, if it is not found automatically |
-| `--key-regex <regex>` | what a task key looks like |
+| `--key-regex <regex>` | what a task key looks like (or use `keyPatterns` in `~/.taskrecap/config.json`) |
+| `--ignore-branches <a,b>` | branch names that mean "no task" |
 | `--no-open` | do not open the browser |
 | `--lang <code>` | UI language (see CONTRIBUTING) |
 | `--votes <n>`, `--model <name>` | generation settings |
 
-Environment: `TASKRECAP_HOME`, `TASKRECAP_PROJECTS_DIR`, `TASKRECAP_KEY_REGEX`, `TASKRECAP_CLAUDE` (the older name `TASKRECAP_CLAUDE_BIN` still works).
+Environment: `TASKRECAP_HOME`, `TASKRECAP_PROJECTS_DIR`, `TASKRECAP_KEY_REGEX`, `TASKRECAP_KEY_PATTERNS`, `TASKRECAP_IGNORE_BRANCHES`, `TASKRECAP_CLAUDE` (the older name `TASKRECAP_CLAUDE_BIN` still works).
 
 ## Troubleshooting
 
@@ -158,7 +186,7 @@ After installing Claude Code, press **Check again** on the page; no restart is n
 
 - **Claude Code's session format is not documented** and can change. If a Claude Code update breaks parsing, please open an issue with the version.
 - Tested so far on a small number of real sessions from one developer. Detection quality on other workflows is the biggest unknown, so feedback is very welcome.
-- Sessions with no task key and no feature branch stay **unassigned** and cannot be turned into a capsule yet.
+- Sessions with no task key and no feature branch are listed one by one as *Unsorted* units. Grouping them is up to you (merge, move, rename): free text or file similarity did not separate tasks reliably. Capsules for them, and for groups you make, are not available yet.
 - "Outdated" counts your newer messages in the task's sessions; in a session shared with other tasks only the messages that cite the task key. Updating regenerates the whole capsule (no incremental update yet).
 - The "reverted" and "possibly undone" marks are heuristics; git history is not read.
 - Commits you make in another terminal are not seen (only those that appear in the sessions).

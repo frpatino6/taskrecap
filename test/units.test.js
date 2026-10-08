@@ -6,7 +6,7 @@ import { SessionIndex } from '../src/tasks.js';
 import { DEFAULT_KEY_REGEX } from '../src/config.js';
 import { UNASSIGNED } from '../src/sessions.js';
 import {
-  MIN_WORDS, TITLE_MAX, buildUnits, cutTitle, emptyState, foldOps, hasContent, meaningfulText, relatedUnits, sessionTitle, shortIds, wordCount,
+  MIN_WORDS, TITLE_MAX, buildUnits, cutTitle, emptyState, foldOps, hasContent, meaningfulText, relatedUnits, sessionTitle, shortIds, stripTags, wordCount,
 } from '../src/units.js';
 import { makeSession, tmpDir } from './helpers.js';
 
@@ -214,4 +214,17 @@ test('a session with several real messages and a Claude title uses the title', (
   fs.writeFileSync(file, JSON.stringify({ type: 'custom-title', customTitle: 'Named by Claude Code' }) + '\n' + fs.readFileSync(file, 'utf8'));
   assert.equal(new SessionIndex(proj).tasks()[0].label, 'Named by Claude Code');
   assert.ok(path.basename(file).startsWith('AAAAAAAA'));
+});
+
+test('stripTags removes editor tags and their content; the card snippet never shows them', () => {
+  assert.equal(stripTags('<ide_opened_file>The user opened /x/a.js</ide_opened_file>'), '');
+  assert.equal(stripTags('<ide_opened_file>x</ide_opened_file>  Fix the   bug <b>now</b>'), 'Fix the bug now');
+  const proj = tmpDir();
+  makeSession(proj, 'AAAAAAAA-1', [[at(10), '<ide_opened_file>The user opened /x/a.js</ide_opened_file> Refactor the cart module to use integer cents', 'ok']], { branch: 'main' });
+  makeSession(proj, 'BBBBBBBB-2', [[at(11), '<ide_opened_file>The user opened /x/README.md</ide_opened_file>', 'ok']], { branch: 'main', proj: 'p2' });
+  const tasks = new SessionIndex(proj).tasks();
+  assert.equal(tasks.find((t) => t.key === 'session:AAAAAAAA').snippet, 'Refactor the cart module to use integer cents');
+  const note = tasks.find((t) => t.key === 'session:BBBBBBBB');
+  assert.equal(note.snippet, '', 'an editor note has no message: the page writes its own label');
+  assert.equal(note.noise, true);
 });

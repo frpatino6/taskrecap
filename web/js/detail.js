@@ -76,7 +76,7 @@ async function renderDetail(key, { animate = false } = {}) {
   const cap = d.capsule, t = d.task || { key, kind: "key", generatable: true, projects: [], snippet: "" };
   const objective = cap ? (cap.capsule || {}).objective : (d.sessions[0] || {}).snippet;
   el.innerHTML = `<button class="back" id="back" type="button">${esc(S.back)}</button>
-    <div class="hero"><div><span class="chip repo">${esc(kindLabel(t.kind))}</span>${unitChips(t)}${t.renamed && t.kind !== "user" ? `<span class="chip">${esc(key)}</span>` : ""}<h1 tabindex="-1">${esc(unitTitle(t))}</h1><p class="t">${esc(objective || "")}</p>
+    <div class="hero"><div><span class="chip repo">${esc(kindLabel(t.kind))}</span>${t.renamed && t.kind !== "user" ? `<span class="chip">${esc(key)}</span>` : ""}<h1 tabindex="-1">${esc(unitTitle(t))}</h1><p class="t">${esc(objective || "")}</p>
       ${cap && cap.generated_at ? `<p class="t" style="font-size:13px">${esc(fmt(S.generated_at, { date: day(cap.generated_at) }))}</p>` : ""}</div>
       <div class="heroact"><button class="cta ghost sm detailmenu" id="unit-menu" type="button" data-menu="${esc(key)}" aria-haspopup="menu" aria-expanded="false">${esc(S.menu_actions)} ▾</button>
       ${cap ? `<button class="cta" id="resume" type="button">${esc(S.resume)}</button>` : ""}</div></div>

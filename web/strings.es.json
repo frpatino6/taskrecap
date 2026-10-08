@@ -350,5 +350,6 @@
   "split_msg": "Grupo separado.",
   "empty_group_title": "Sesiones sin contenido ({n})",
   "empty_group_note": "Solo saludos, comandos o notas del editor: nada que diga cuál era el trabajo. Se guardan aquí, plegadas, por si necesitas alguna.",
-  "tl_empty_folded": "{n} sesiones sin contenido están plegadas abajo"
+  "tl_empty_folded": "{n} sesiones sin contenido están plegadas abajo",
+  "empty_row_fallback": "Nota del editor o comando, sin mensaje"
 }

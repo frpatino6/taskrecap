@@ -137,6 +137,8 @@ async function afterChange(res, message, { go } = {}) {
   TASKS = (await api("/api/tasks")).tasks;
   await refreshHidden();
   toast(message, res && res.undo);
+  const here = location.hash.match(/^#\/task\/(.+)$/);
+  if ((go === undefined || go === null) && here && !unitByKey(decodeURIComponent(here[1]))) go = ""; // the unit we are looking at no longer exists (an undo, a split): back to the list
   if (go !== undefined && go !== null) {
     const hash = go === "" ? "" : "#/task/" + encodeURIComponent(go);
     if (location.hash === hash || (hash === "" && !location.hash)) { await route(); return; }
@@ -264,7 +266,7 @@ async function openSessionMenu(btn) {
 
 // ---------- the folded group of sessions without content, and the hidden items ----------
 function emptyRow(t) {
-  const title = t.snippet ? t.snippet.slice(0, 70) : unitTitle(t);
+  const title = t.snippet ? t.snippet.slice(0, 70) : S.empty_row_fallback;
   return html`<div class="emptyrow"><button type="button" class="emptyopen" data-key="${t.key}"><span class="et">${title}</span>
     <span class="chip repo">${(t.projects && t.projects[0]) || ""}</span><span class="chip">${day(t.first_ts)}</span></button>
     <button type="button" class="cardmenu" data-menu="${t.key}" aria-haspopup="menu" aria-expanded="false" aria-label="${fmt(S.menu_label, { name: title })}">⋯</button></div>`;
