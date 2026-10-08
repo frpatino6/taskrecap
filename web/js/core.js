@@ -95,3 +95,39 @@ async function refreshUsage() {
   } catch (e) { $("usage").textContent = ""; }
 }
 
+// ---------- Claude Code missing? AI actions are switched off, with the way to fix it (free mode never depends on it) ----------
+const aiOn = () => !INFO.ai || INFO.ai.available !== false;
+function aiOffHtml() {
+  const a = INFO.ai || {};
+  const why = a.reason === "not-working" ? S.ai_off_not_working : a.reason === "override-not-found" ? S.ai_off_bad_override : S.ai_off_not_found;
+  const tried = (a.tried || []).length > 1 ? html`<p class="hint">${fmt(S.ai_off_tried, { places: a.tried.slice(0, 6).join(", ") })}</p>` : "";
+  return html`<div class="panel ai-off" role="status"><h2>${S.ai_off_title}</h2><p>${why}</p>${tried}<h3>${S.ai_off_steps_title}</h3>
+    <ul><li>${S.ai_off_step_install}</li><li>${S.ai_off_step_path}</li><li>${S.ai_off_step_doctor}</li></ul>
+    <div class="row"><button class="cta ghost sm ai-recheck" type="button">${S.ai_off_recheck}</button><span class="hint ai-recheck-msg" role="status" aria-live="polite"></span></div></div>`;
+}
+/** Wires the "Check again" buttons inside `box`: asks the server to look for Claude Code again; when it is there, the page refreshes. */
+function bindAiRecheck(box) {
+  box.querySelectorAll(".ai-recheck").forEach((btn) => btn.addEventListener("click", async () => {
+    const msg = box.querySelector(".ai-recheck-msg");
+    btn.disabled = true;
+    if (msg) msg.textContent = S.ai_off_checking;
+    try { INFO.ai = await api("/api/ai?force=1"); } catch (e) { if (msg) msg.textContent = e.message; btn.disabled = false; return; }
+    if (aiOn()) { applyAiGate(); if (typeof route === "function") route(); return; }
+    if (msg) msg.textContent = S.ai_off_still;
+    btn.disabled = false;
+  }));
+}
+/** Home page: disable the AI buttons and explain why (or clear the note when Claude Code is available). */
+function applyAiGate() {
+  const off = !aiOn();
+  for (const id of ["ai-search", "none-ai"]) {
+    const b = $(id);
+    if (!b) continue;
+    b.disabled = off;
+    if (off) b.title = S.ai_off_tooltip; else b.removeAttribute("title");
+  }
+  const note = $("ai-note");
+  if (!note) return;
+  note.innerHTML = off ? aiOffHtml() : "";
+  if (off) bindAiRecheck(note);
+}

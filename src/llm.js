@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import * as config from './config.js';
+import { classifyFailure, isSafeModel, killTree, locateClaude, shortenPath, spawnSpec, unavailableMessage } from './claude.js';
 
 export const SYSTEM_PROMPT = 'You are an analyst. Reply ONLY with valid JSON: no text before or after, no code fences.';
 // Rough list-price assumption (USD per million tokens, Sonnet-class). Only used for the pre-run estimate;
@@ -12,12 +12,21 @@ export const PRICE_IN_PER_MTOK = 3.0;
 export const PRICE_OUT_PER_MTOK = 15.0;
 export const CALL_OVERHEAD_TOKENS = 4000; // fixed per-call overhead of a headless Claude Code call
 
-/** `claude` is not installed or not on PATH. */
+/** Claude Code cannot be used: not found, does not start, or not logged in. `code` says which; the message says how to fix it. */
 export class LLMUnavailable extends Error {
-  constructor(message) {
+  constructor(message, code = 'not-found') {
     super(message);
     this.name = 'LLMUnavailable';
+    this.code = code;
   }
+}
+
+/** A failed `claude -p` -> a friendly LLMUnavailable when its output says "not logged in" / "not found", else the error unchanged. */
+export function mapFailure(error, status = {}) {
+  const kind = classifyFailure(`${error && error.message}`);
+  if (kind === 'not-logged-in') return new LLMUnavailable(unavailableMessage({ reason: 'not-logged-in' }), 'not-logged-in');
+  if (kind === 'not-found') return new LLMUnavailable(unavailableMessage({ reason: 'not-found', tried: status.tried }), 'not-found');
+  return error;
 }
 
 /** The user cancelled: the running `claude -p` processes were stopped. */
@@ -129,7 +138,9 @@ export function makeStreamParser(onText = null) {
  */
 export function askLlm(prompt, { model = 'sonnet', budget = 1.5, timeout = 900000, signal = null, onText = null } = {}) {
   if (signal && signal.aborted) return Promise.reject(new Aborted());
-  const binary = config.claudeBin();
+  if (!isSafeModel(model)) return Promise.reject(new Error(`Unsupported model name: ${String(model).slice(0, 40)}`));
+  const found = locateClaude();
+  if (!found.path) return Promise.reject(new LLMUnavailable(unavailableMessage(found), found.reason === 'override-not-found' ? 'override-not-found' : 'not-found'));
   const format = onText ? ['stream-json', '--verbose', '--include-partial-messages'] : ['json'];
   const args = [
     '-p', '--output-format', ...format, '--tools', '', '--no-session-persistence',
@@ -142,7 +153,8 @@ export function askLlm(prompt, { model = 'sonnet', budget = 1.5, timeout = 90000
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(binary, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+      const spec = spawnSpec(found.path, args);
+      child = spawn(spec.command, spec.args, { ...spec.options, cwd, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     } catch (e) {
       cleanup();
       reject(e);
@@ -153,8 +165,7 @@ export function askLlm(prompt, { model = 'sonnet', budget = 1.5, timeout = 90000
     let settled = false;
     const parser = onText ? makeStreamParser(onText) : null;
     const onAbort = () => {
-      child.kill('SIGTERM');
-      setTimeout(() => child.kill('SIGKILL'), 2000).unref();
+      killTree(child);
       done(reject, new Aborted());
     };
     const done = (fn, v) => {
@@ -166,7 +177,7 @@ export function askLlm(prompt, { model = 'sonnet', budget = 1.5, timeout = 90000
       fn(v);
     };
     const timer = setTimeout(() => {
-      child.kill('SIGKILL');
+      killTree(child, { hard: true });
       done(reject, new Error('claude -p timed out'));
     }, timeout);
     if (signal) signal.addEventListener('abort', onAbort, { once: true });
@@ -178,18 +189,20 @@ export function askLlm(prompt, { model = 'sonnet', budget = 1.5, timeout = 90000
     });
     child.stderr.on('data', (d) => { stderr += d; });
     child.on('error', (e) => {
-      if (e.code === 'ENOENT') done(reject, new LLMUnavailable('The `claude` command was not found. Install Claude Code and log in, then retry.'));
-      else done(reject, e);
+      if (e.code === 'ENOENT' || e.code === 'EINVAL' || e.code === 'EACCES') {
+        const status = { reason: 'not-working', short_path: shortenPath(found.path), detail: `could not start it: ${e.code}` };
+        done(reject, new LLMUnavailable(unavailableMessage(status), 'not-working'));
+      } else done(reject, e);
     });
     child.on('close', (code) => {
       if (code !== 0) {
-        done(reject, new Error(`claude -p failed (${code}): ${(stderr.trim() || stdout.trim()).slice(0, 300)}`));
+        done(reject, mapFailure(new Error(`claude -p failed (${code}): ${(stderr.trim() || stdout.trim()).slice(0, 300)}`), found));
         return;
       }
       try {
         done(resolve, parser ? parser.end() : parseClaudeOutput(stdout));
       } catch (e) {
-        done(reject, e);
+        done(reject, mapFailure(e, found));
       }
     });
     child.stdin.on('error', () => { /* the close handler reports the failure */ });
