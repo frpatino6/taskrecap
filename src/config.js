@@ -50,7 +50,3 @@ export function setClaudePath(p) {
 export function claudeOverride() {
   return cliClaudePath || process.env.TASKRECAP_CLAUDE || process.env.TASKRECAP_CLAUDE_BIN || null;
 }
-
-export function claudeBin() {
-  return claudeOverride() || 'claude';
-}

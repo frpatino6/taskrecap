@@ -288,5 +288,7 @@
   "ai_off_recheck": "Comprobar de nuevo",
   "ai_off_checking": "Comprobando…",
   "ai_off_still": "Sigue sin estar disponible.",
-  "ai_off_tooltip": "Necesita Claude Code, que no se encontró. Mira la nota en esta página."
+  "ai_off_tooltip": "Necesita Claude Code, que no se encontró. Mira la nota en esta página.",
+  "ai_checking_tooltip": "Comprobando si Claude Code está disponible…",
+  "ai_off_unknown": "taskrecap no pudo comprobar si Claude Code está disponible. Navegar, la línea de tiempo y la búsqueda gratuita siguen funcionando."
 }

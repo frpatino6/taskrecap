@@ -288,5 +288,7 @@
   "ai_off_recheck": "Check again",
   "ai_off_checking": "Checking…",
   "ai_off_still": "Still not available.",
-  "ai_off_tooltip": "Needs Claude Code, which was not found. See the note on this page."
+  "ai_off_tooltip": "Needs Claude Code, which was not found. See the note on this page.",
+  "ai_checking_tooltip": "Checking whether Claude Code is available…",
+  "ai_off_unknown": "taskrecap could not tell whether Claude Code is available. Browsing, the timeline and free search keep working."
 }

@@ -3,7 +3,8 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { classifyFailure, isSafeModel, killTree, locateClaude, shortenPath, spawnSpec, unavailableMessage } from './claude.js';
+import { cachedClaudePath, classifyFailure, clearClaudeCache, cliErrorText, firstErrorLine, isSafeModel, killTree, locateClaude, shortenPath, spawnSpec, unavailableMessage } from './claude.js';
+import { UserError } from './errors.js';
 
 export const SYSTEM_PROMPT = 'You are an analyst. Reply ONLY with valid JSON: no text before or after, no code fences.';
 // Rough list-price assumption (USD per million tokens, Sonnet-class). Only used for the pre-run estimate;
@@ -21,13 +22,31 @@ export class LLMUnavailable extends Error {
   }
 }
 
-/** A failed `claude -p` -> a friendly LLMUnavailable when its output says "not logged in" / "not found", else the error unchanged. */
+/**
+ * A failed `claude -p` -> a friendly LLMUnavailable when what the CLI itself reported says "not logged in" / "not found",
+ * else the error unchanged. Only the error's `stderr`, `stdout` (an is_error result) and `cliText` count: never its message,
+ * which may carry output of the model.
+ */
 export function mapFailure(error, status = {}) {
-  const kind = classifyFailure(`${error && error.message}`);
+  const e = error || {};
+  const kind = classifyFailure({ stderr: [e.stderr, e.cliText].filter(Boolean).join('\n'), stdout: e.stdout, errCode: e.errCode });
   if (kind === 'not-logged-in') return new LLMUnavailable(unavailableMessage({ reason: 'not-logged-in' }), 'not-logged-in');
   if (kind === 'not-found') return new LLMUnavailable(unavailableMessage({ reason: 'not-found', tried: status.tried }), 'not-found');
   return error;
 }
+
+/** A non-zero exit of `claude -p`: keeps what the CLI said (for mapFailure) and shows its real first error line. */
+export function claudeFailed(exitCode, { stderr = '', stdout = '' } = {}) {
+  const line = firstErrorLine(stderr) || firstErrorLine(cliErrorText(stdout));
+  const err = new Error(line ? `Claude failed: ${line}` : `Claude failed (exit code ${exitCode})`);
+  err.stderr = String(stderr);
+  err.stdout = String(stdout);
+  err.exitCode = exitCode;
+  return err;
+}
+
+/** Why a --model value was refused (shown to the user by the CLI and the page). */
+export const modelNameProblem = (model) => `Unsupported model name "${String(model).slice(0, 40)}": use letters, digits and . _ - : [ ] only (for example sonnet, opus or claude-sonnet-5-5).`;
 
 /** The user cancelled: the running `claude -p` processes were stopped. */
 export class Aborted extends Error {
@@ -73,7 +92,11 @@ export function parseClaudeOutput(stdout) {
   } catch {
     throw new Error('claude -p returned non-JSON output: ' + String(stdout).slice(0, 200));
   }
-  if (out.is_error) throw new Error('claude -p error: ' + String(out.result).slice(0, 300));
+  if (out.is_error) {
+    const err = new Error('claude -p error: ' + String(out.result).slice(0, 300));
+    err.cliText = String(out.result); // the CLI's own error message (not a model answer): mapFailure may classify it
+    throw err;
+  }
   const usage = out.usage || {};
   const meta = {
     cost_usd: out.total_cost_usd == null ? null : out.total_cost_usd,
@@ -138,8 +161,9 @@ export function makeStreamParser(onText = null) {
  */
 export function askLlm(prompt, { model = 'sonnet', budget = 1.5, timeout = 900000, signal = null, onText = null } = {}) {
   if (signal && signal.aborted) return Promise.reject(new Aborted());
-  if (!isSafeModel(model)) return Promise.reject(new Error(`Unsupported model name: ${String(model).slice(0, 40)}`));
-  const found = locateClaude();
+  if (!isSafeModel(model)) return Promise.reject(new UserError(modelNameProblem(model)));
+  const cached = cachedClaudePath(); // the last check found it: no need to walk PATH on every call
+  const found = cached ? { path: cached, via: 'cache', tried: [] } : locateClaude();
   if (!found.path) return Promise.reject(new LLMUnavailable(unavailableMessage(found), found.reason === 'override-not-found' ? 'override-not-found' : 'not-found'));
   const format = onText ? ['stream-json', '--verbose', '--include-partial-messages'] : ['json'];
   const args = [
@@ -190,13 +214,14 @@ export function askLlm(prompt, { model = 'sonnet', budget = 1.5, timeout = 90000
     child.stderr.on('data', (d) => { stderr += d; });
     child.on('error', (e) => {
       if (e.code === 'ENOENT' || e.code === 'EINVAL' || e.code === 'EACCES') {
+        clearClaudeCache(); // the remembered location is stale: look again on the next call
         const status = { reason: 'not-working', short_path: shortenPath(found.path), detail: `could not start it: ${e.code}` };
         done(reject, new LLMUnavailable(unavailableMessage(status), 'not-working'));
       } else done(reject, e);
     });
     child.on('close', (code) => {
       if (code !== 0) {
-        done(reject, mapFailure(new Error(`claude -p failed (${code}): ${(stderr.trim() || stdout.trim()).slice(0, 300)}`), found));
+        done(reject, mapFailure(claudeFailed(code, { stderr, stdout }), found));
         return;
       }
       try {

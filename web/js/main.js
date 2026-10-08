@@ -36,6 +36,7 @@ async function route() {
     await loadLang();
     applyStatic();
     applyAiGate();
+    pollAiStatus(); // the server may still be looking for Claude Code: update the buttons when it knows
     $("loading").textContent = S.loading;
     TASKS = (await api("/api/tasks")).tasks;
     $("loading").hidden = true;

@@ -5,8 +5,8 @@ import readline from 'node:readline';
 import { parseArgs } from 'node:util';
 import { App, DEMO_DIR, UserError } from './app.js';
 import * as config from './config.js';
-import { checkClaude, publicStatus, shortenPath } from './claude.js';
-import { LLMUnavailable } from './llm.js';
+import { checkClaude, isSafeModel, publicStatus, shortenPath } from './claude.js';
+import { LLMUnavailable, modelNameProblem } from './llm.js';
 import { toRegex } from './sessions.js';
 import { openBrowser, startServer } from './server.js';
 
@@ -71,6 +71,7 @@ export function parseCli(argv) {
   const o = parsed.values;
   const votes = Number.parseInt(o.votes, 10);
   if (Number.isNaN(votes) || votes < 1 || votes > 9) throw new UserError('--votes must be a number from 1 to 9');
+  if (!isSafeModel(o.model)) throw new UserError(`--model: ${modelNameProblem(o.model)}`);
   let port = 8765;
   if (o.port !== undefined) {
     port = Number.parseInt(o.port, 10);

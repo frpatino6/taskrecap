@@ -153,17 +153,19 @@ function renderAiResults(res) {
 }
 
 async function startAiSearch() {
+  if (!aiOn()) { applyAiGate(); return; } // Claude Code is not (or not yet known to be) there: never start a request
   const q = $("q").value.trim(), box = $("aibox");
   if (!q) { box.innerHTML = html`<p class="err" role="alert">${S.ai_search_empty}</p>`; return; }
-  $("ai-search").disabled = true;
+  setAiBusy("search", true);
   box.innerHTML = html`<p>${S.estimate_loading}</p>`;
   try {
     const e = await api("/api/ai-search/estimate?q=" + encodeURIComponent(q));
     box.innerHTML = html`<div class="panel ai"><h2><span class="chip ai">${S.ai_badge}</span></h2>
       <p class="hint">${fmt(S.ai_estimate_text, { tokens: fmtTokens(e.input_tokens + e.output_tokens), usd: "~" + usd(e.usd), tasks: e.tasks })}</p>
       <div class="row"><button class="cta ai" id="ai-ok" type="button">${S.confirm_generate}</button><button class="cta ghost" id="ai-no" type="button">${S.cancel}</button></div></div>`;
-    $("ai-no").addEventListener("click", () => { box.innerHTML = ""; $("ai-search").disabled = false; });
+    $("ai-no").addEventListener("click", () => { box.innerHTML = ""; setAiBusy("search", false); });
     $("ai-ok").addEventListener("click", () => {
+      if (!aiOn()) { box.innerHTML = ""; setAiBusy("search", false); applyAiGate(); return; }
       runAiAction({
         box, path: "/api/ai-search", body: { query: q, confirm: true }, title: fmt(S.progress_searching, { query: q }),
         onMatch: (ev, el) => {
@@ -179,14 +181,14 @@ async function startAiSearch() {
           box.innerHTML = html`<p class="okmsg" role="status">${fmt(S.progress_done_generate, { tokens: fmtTokens(res.usage.tokens), usd: "~" + usd(res.usage.cost_usd) })}</p>`; // aibox is a polite live region
           refreshUsage();
         },
-        onEnd: () => { $("ai-search").disabled = false; },
+        onEnd: () => { setAiBusy("search", false); },
         onRetry: startAiSearch,
       });
     });
   } catch (err) {
     box.innerHTML = html`<p class="err" role="alert">${S.error_prefix} ${err.message}</p><div class="row"><button class="cta ai sm" id="ai-retry" type="button">${S.error_retry}</button></div>`;
     $("ai-retry").addEventListener("click", startAiSearch); // the estimate failed: nothing was spent, asking again is safe
-    $("ai-search").disabled = false;
+    setAiBusy("search", false);
   }
 }
 
