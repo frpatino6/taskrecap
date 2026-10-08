@@ -338,3 +338,9 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
   .vz-track { min-height: 34px; }
 }
 @media (max-width: 560px) { .coverage { order: 2; } .vzfilters select, .vzfilters input { max-width: 150px; } }
+.ai-off { margin: 16px 0; border-color: var(--warn); }
+.ai-off h3 { font-size: 14px; margin: 12px 0 4px; }
+.ai-off ul { margin: 0 0 12px 18px; padding: 0; }
+.ai-off li { margin: 4px 0; }
+.cta[disabled][title] { opacity: .55; cursor: not-allowed; } /* AI off: the title explains why */
+

@@ -275,5 +275,18 @@
   "stale_tip": "Desactualizada: {n} mensajes nuevos",
   "stale_lane_label": "Cápsula desactualizada",
   "tl_outdated": "Lista, desactualizada",
-  "coverage_outdated": "{n} desactualizadas"
+  "coverage_outdated": "{n} desactualizadas",
+  "ai_off_title": "Las acciones con IA no están disponibles",
+  "ai_off_not_found": "taskrecap no encontró Claude Code en este equipo. Navegar, la línea de tiempo y la búsqueda gratis siguen funcionando.",
+  "ai_off_not_working": "Se encontró Claude Code pero no arrancó. Navegar, la línea de tiempo y la búsqueda gratis siguen funcionando.",
+  "ai_off_bad_override": "La ruta de Claude que indicaste no existe. Navegar, la línea de tiempo y la búsqueda gratis siguen funcionando.",
+  "ai_off_tried": "Se buscó en: {places}",
+  "ai_off_steps_title": "Cómo solucionarlo",
+  "ai_off_step_install": "Instala Claude Code y ejecuta claude una vez en una terminal para iniciar sesión: https://claude.com/claude-code",
+  "ai_off_step_path": "¿Ya está instalado? Indícale a taskrecap dónde está: inícialo con taskrecap --claude-path <ruta completa de claude>, o define la variable de entorno TASKRECAP_CLAUDE.",
+  "ai_off_step_doctor": "Ejecuta taskrecap doctor en una terminal para una revisión paso a paso.",
+  "ai_off_recheck": "Comprobar de nuevo",
+  "ai_off_checking": "Comprobando…",
+  "ai_off_still": "Sigue sin estar disponible.",
+  "ai_off_tooltip": "Necesita Claude Code, que no se encontró. Mira la nota en esta página."
 }

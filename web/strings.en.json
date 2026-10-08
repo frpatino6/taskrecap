@@ -275,5 +275,18 @@
   "stale_tip": "Outdated: {n} new messages",
   "stale_lane_label": "Capsule outdated",
   "tl_outdated": "Ready, outdated",
-  "coverage_outdated": "{n} outdated"
+  "coverage_outdated": "{n} outdated",
+  "ai_off_title": "AI actions are unavailable",
+  "ai_off_not_found": "taskrecap could not find Claude Code on this computer. Browsing, the timeline and free search keep working.",
+  "ai_off_not_working": "Claude Code was found but did not start. Browsing, the timeline and free search keep working.",
+  "ai_off_bad_override": "The Claude path you set does not exist. Browsing, the timeline and free search keep working.",
+  "ai_off_tried": "Looked for it in: {places}",
+  "ai_off_steps_title": "How to fix it",
+  "ai_off_step_install": "Install Claude Code and run claude once in a terminal to log in: https://claude.com/claude-code",
+  "ai_off_step_path": "Already installed? Point taskrecap to it: start it with taskrecap --claude-path <full path to claude>, or set the TASKRECAP_CLAUDE environment variable.",
+  "ai_off_step_doctor": "Run taskrecap doctor in a terminal for a step-by-step check.",
+  "ai_off_recheck": "Check again",
+  "ai_off_checking": "Checking…",
+  "ai_off_still": "Still not available.",
+  "ai_off_tooltip": "Needs Claude Code, which was not found. See the note on this page."
 }

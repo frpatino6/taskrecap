@@ -80,6 +80,12 @@ async function renderDetail(key, { animate = false } = {}) {
   if (resume) resume.addEventListener("click", () => copyBriefing(resume, (cap.capsule || {}).briefing || ""));
   const gen = $("gen");
   if (gen) gen.addEventListener("click", () => startGenerate(key));
+  if (gen && !aiOn()) { // Claude Code not found: no dead button, an explanation and a way to check again
+    gen.disabled = true;
+    gen.title = S.ai_off_tooltip;
+    const gb = $("genbox");
+    if (gb) { gb.innerHTML = aiOffHtml(); bindAiRecheck(gb); }
+  }
   el.querySelectorAll(".filelink").forEach((b) => b.addEventListener("click", () => showFileTasks(b.dataset.file, key)));
   bindSessions(d);
 }

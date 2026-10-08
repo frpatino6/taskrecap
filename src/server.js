@@ -73,7 +73,7 @@ function errorInfo(e) {
   if (e instanceof EvidenceError) return { status: e.code === 'bad_request' ? 400 : e.code === 'ambiguous' ? 409 : 404, message: e.message, code: e.code };
   if (e instanceof UserError) return { status: 400, message: e.message };
   if (e instanceof Busy) return { status: 409, message: 'This capsule is already being generated' };
-  if (e instanceof LLMUnavailable) return { status: 503, message: e.message };
+  if (e instanceof LLMUnavailable) return { status: 503, message: e.message, code: e.code };
   return { status: 500, message: `Request failed: ${e.message}` }; // surface LLM/runtime failures to the page
 }
 
@@ -164,7 +164,8 @@ async function handleGet(app, url, route, res) {
     const [file, ctype] = WEB_ASSETS[route];
     return send(res, 200, fs.readFileSync(path.join(WEB_DIR, file)), ctype);
   }
-  if (route === '/api/info') return send(res, 200, app.info());
+  if (route === '/api/info') return send(res, 200, { ...app.info(), ai: await app.aiStatus() });
+  if (route === '/api/ai') return send(res, 200, await app.aiStatus(url.searchParams.get('force') === '1')); // "check again" after installing Claude Code
   if (route === '/api/strings') return send(res, 200, app.stringsFor(url.searchParams.get('lang')));
   if (route === '/api/langs') return send(res, 200, { langs: listLangs() });
   if (route === '/api/usage') return send(res, 200, app.usageSnapshot());

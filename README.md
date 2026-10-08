@@ -120,12 +120,39 @@ A capsule takes 1 call to write plus, for multi-task sessions, up to 3 short cal
 | `--demo` | use the built-in fictional sessions |
 | `--port <n>` | dashboard port (default 8765; the next free one is used if busy) |
 | `--projects-dir <dir>` | where Claude Code stores sessions (default `~/.claude/projects`, or `$CLAUDE_CONFIG_DIR/projects`) |
+| `--claude-path <path>` | full path to the `claude` executable, if it is not found automatically |
 | `--key-regex <regex>` | what a task key looks like |
 | `--no-open` | do not open the browser |
 | `--lang <code>` | UI language (see CONTRIBUTING) |
 | `--votes <n>`, `--model <name>` | generation settings |
 
-Environment: `TASKRECAP_HOME`, `TASKRECAP_PROJECTS_DIR`, `TASKRECAP_KEY_REGEX`, `TASKRECAP_CLAUDE_BIN`.
+Environment: `TASKRECAP_HOME`, `TASKRECAP_PROJECTS_DIR`, `TASKRECAP_KEY_REGEX`, `TASKRECAP_CLAUDE` (the older name `TASKRECAP_CLAUDE_BIN` still works).
+
+## Troubleshooting
+
+Start with `npx taskrecap doctor`. It checks Node, your sessions folder and Claude Code, and prints the next step for anything that is wrong. Browsing, the timeline, free search and evidence never need Claude Code; only the actions marked AI do.
+
+**"Claude Code was not found" / the AI buttons are disabled.** taskrecap looks for `claude` in this order: `--claude-path` or `TASKRECAP_CLAUDE`, then your `PATH`, then the usual install folders (`~/.local/bin`, `~/.claude/local`, Homebrew, npm and nvm globals; on Windows also `%USERPROFILE%\.local\bin`, `%APPDATA%\npm` and `%LOCALAPPDATA%\Programs`). If Claude Code works in your terminal but taskrecap cannot find it, ask the terminal where it is and pass that path:
+
+```bash
+# macOS / Linux
+which claude
+npx taskrecap --claude-path /full/path/to/claude
+
+# Windows (PowerShell)
+Get-Command claude | Select-Object -ExpandProperty Source
+npx taskrecap --claude-path "C:\path\to\claude.exe"
+# or, for every run:
+setx TASKRECAP_CLAUDE "C:\path\to\claude.exe"
+```
+
+After installing Claude Code, press **Check again** on the page; no restart is needed.
+
+**Windows notes.** `claude.exe` (the native installer) and `claude.cmd` (the npm shim) are both supported; a `.cmd` shim is started through `cmd.exe` with every argument escaped, and your prompt is sent through standard input, never on the command line. A terminal opened before you installed Claude Code may not have it on `PATH` yet: open a new one.
+
+**"Not logged in".** Run `claude` once in a terminal and log in. taskrecap cannot check the login for free (that would need a paid call), so it tells you when an action fails because of it.
+
+**No sessions found.** Use Claude Code in a project first, or point to the folder with `--projects-dir`. `npx taskrecap --demo` works without any sessions.
 
 ## Honest limitations
 

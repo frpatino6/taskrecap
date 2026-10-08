@@ -5,6 +5,7 @@ import readline from 'node:readline';
 import { parseArgs } from 'node:util';
 import { App, DEMO_DIR, UserError } from './app.js';
 import * as config from './config.js';
+import { checkClaude, publicStatus, shortenPath } from './claude.js';
 import { LLMUnavailable } from './llm.js';
 import { toRegex } from './sessions.js';
 import { openBrowser, startServer } from './server.js';
@@ -16,12 +17,14 @@ Usage:
   taskrecap [ui] [options]       open the local dashboard (default)
   taskrecap list [options]       list the tasks found in your sessions
   taskrecap generate <KEY>       write the capsule of one task (asks before spending tokens)
+  taskrecap doctor [options]     check Node, your sessions folder and Claude Code, and say how to fix what is missing
 
 Options:
   --demo                use the built-in fictional sessions instead of yours
   --port <n>            port for the dashboard (default 8765; the next free one is used if busy)
   --projects-dir <dir>  where Claude Code stores sessions (default ~/.claude/projects)
   --key-regex <regex>   regex that matches a task key (default: Jira-style, e.g. ABC-123)
+  --claude-path <path>  full path to the claude executable (also TASKRECAP_CLAUDE) if it is not found automatically
   --no-open             do not open the browser
   --lang <code>         UI language (a web/strings.<code>.json file; default en)
   --json                (list) print JSON
@@ -39,6 +42,7 @@ const OPTIONS = {
   demo: { type: 'boolean' },
   port: { type: 'string' },
   'projects-dir': { type: 'string' },
+  'claude-path': { type: 'string' },
   'key-regex': { type: 'string' },
   'no-open': { type: 'boolean' },
   'no-browser': { type: 'boolean' },
@@ -61,7 +65,7 @@ export function parseCli(argv) {
     throw new UserError(e.message);
   }
   const [first, ...rest] = parsed.positionals;
-  const known = ['ui', 'list', 'generate', 'help'];
+  const known = ['ui', 'list', 'generate', 'doctor', 'help'];
   const cmd = first === undefined ? 'ui' : first;
   if (!known.includes(cmd)) throw new UserError(`Unknown command "${cmd}". Run taskrecap --help.`);
   const o = parsed.values;
@@ -120,6 +124,7 @@ async function cmdUi(opts, out) {
     return 1;
   }
   const { server, url } = await startServer(app, opts.port);
+  app.aiStatus().catch(() => {}); // warm the Claude Code check so the page does not wait for it
   out.log(`taskrecap running at ${url}  (Ctrl+C to stop)`);
   out.log('Normal mode is free and local. Actions marked "AI" show an estimate before using Claude.');
   if (!opts.noOpen) openBrowser(url);
@@ -149,6 +154,51 @@ function cmdList(opts, out) {
   return 0;
 }
 
+/** `taskrecap doctor`: one line per check, and the next step for each problem. Returns 0 when everything needed is fine. */
+export async function cmdDoctor(opts, out, { claude = checkClaude, nodeVersion = process.versions.node, platform = process.platform } = {}) {
+  const lines = [];
+  let problems = 0;
+  const ok = (t) => lines.push(`  [ok] ${t}`);
+  const bad = (t, next) => { problems += 1; lines.push(`  [!!] ${t}`); for (const n of [].concat(next)) lines.push(`       -> ${n}`); };
+  const note = (t) => lines.push(`  [--] ${t}`);
+
+  const major = Number.parseInt(String(nodeVersion).split('.')[0], 10);
+  if (major >= 18) ok(`Node ${nodeVersion}`);
+  else bad(`Node ${nodeVersion} is too old (taskrecap needs Node 18 or newer)`, 'Install a current Node from https://nodejs.org and run this again.');
+  ok(`System: ${platform} ${process.arch}`);
+
+  const app = buildApp(opts);
+  const dir = app.projectsDir;
+  if (!fs.existsSync(dir)) {
+    bad(`Sessions folder not found: ${shortenPath(dir)}`, [
+      'Use Claude Code at least once in a project, so it writes sessions there.',
+      'If your sessions live elsewhere, run taskrecap with --projects-dir <folder> (or set CLAUDE_CONFIG_DIR).',
+    ]);
+  } else {
+    const n = app.index.listFiles().length;
+    if (n > 0) ok(`Sessions folder: ${shortenPath(dir)} (${n} session${n === 1 ? '' : 's'})`);
+    else bad(`Sessions folder is empty: ${shortenPath(dir)}`, 'Use Claude Code in a project first, or try: taskrecap --demo');
+  }
+
+  const c = publicStatus(await claude({ force: true }));
+  if (c.available) {
+    ok(`Claude Code: ${c.path} (version ${c.version}, found ${c.via === 'path' ? 'on PATH' : c.via === 'override' ? 'via --claude-path / TASKRECAP_CLAUDE' : 'in a known install folder, not on PATH'})`);
+    note('Login: it cannot be verified without a paid call. If an AI action says "not logged in", open a terminal, run `claude` and log in.');
+  } else {
+    bad(c.reason === 'not-working' ? `Claude Code found at ${c.path} but it does not start` : c.reason === 'override-not-found' ? 'The path you set for Claude Code does not exist' : 'Claude Code was not found', [
+      c.message,
+      ...(c.tried.length > 1 ? [`Looked in: ${c.tried.join(', ')}`] : []),
+    ]);
+    note('Free mode (browse, search, timeline, evidence) works without Claude Code. Only the AI actions need it.');
+  }
+  note(`Cache folder: ${shortenPath(config.homeDir())}`);
+
+  out.log('taskrecap doctor');
+  for (const l of lines) out.log(l);
+  out.log(problems ? `\n${problems} problem${problems === 1 ? '' : 's'} found. Follow the "->" steps above, then run taskrecap doctor again.` : '\nAll good: the free mode and the AI actions should work.');
+  return problems ? 1 : 0;
+}
+
 function ask(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => rl.question(question, (a) => { rl.close(); resolve(a); }));
@@ -157,6 +207,8 @@ function ask(question) {
 async function cmdGenerate(key, opts, out) {
   if (!key) throw new UserError('Usage: taskrecap generate <KEY>');
   const app = buildApp(opts);
+  const ai = await app.aiStatus();
+  if (!ai.available) throw new LLMUnavailable(ai.message, ai.reason || 'not-found'); // before any estimate or prompt
   const est = app.estimate(key);
   out.log(`Task ${key}: ${est.sessions} session(s), ${est.calls} Claude call(s), ~${Math.floor(est.input_tokens / 1000)}K input tokens, ` +
     `estimated ~$${est.usd.toFixed(2)} and ~${est.seconds}s (rough estimate).`);
@@ -186,6 +238,8 @@ export async function main(argv = process.argv.slice(2), out = { log: console.lo
       return 0;
     }
     const { cmd, key, opts } = parseCli(argv);
+    config.setClaudePath(opts['claude-path']);
+    if (cmd === 'doctor') return await cmdDoctor(opts, out);
     if (cmd === 'list') return cmdList(opts, out);
     if (cmd === 'generate') return await cmdGenerate(key, opts, out);
     return await cmdUi(opts, out);

@@ -6,7 +6,8 @@
   "scripts": {
     "shots": "node shots.mjs",
     "demo-gif": "node record-demo.mjs",
-    "social": "node social-preview.mjs"
+    "social": "node social-preview.mjs",
+    "check-ai": "node check-ai-off.mjs"
   },
   "devDependencies": {
     "playwright": "^1.50.0"

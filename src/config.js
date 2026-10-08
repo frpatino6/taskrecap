@@ -40,6 +40,17 @@ export function keyRegex(override) {
   return override || process.env.TASKRECAP_KEY_REGEX || DEFAULT_KEY_REGEX;
 }
 
+let cliClaudePath = null;
+/** `--claude-path` from the command line: beats the environment variables. */
+export function setClaudePath(p) {
+  cliClaudePath = p || null;
+}
+
+/** The Claude executable the user asked for, if any: --claude-path, then TASKRECAP_CLAUDE (TASKRECAP_CLAUDE_BIN is the older name). */
+export function claudeOverride() {
+  return cliClaudePath || process.env.TASKRECAP_CLAUDE || process.env.TASKRECAP_CLAUDE_BIN || null;
+}
+
 export function claudeBin() {
-  return process.env.TASKRECAP_CLAUDE_BIN || 'claude';
+  return claudeOverride() || 'claude';
 }

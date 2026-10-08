@@ -35,6 +35,7 @@ async function route() {
     INFO = await api("/api/info");
     await loadLang();
     applyStatic();
+    applyAiGate();
     $("loading").textContent = S.loading;
     TASKS = (await api("/api/tasks")).tasks;
     $("loading").hidden = true;

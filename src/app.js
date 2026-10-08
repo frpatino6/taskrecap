@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as capsule from './capsule.js';
 import { APP_NAME, APP_TITLE, DEFAULT_KEY_REGEX, VERSION } from './config.js';
+import { checkClaude, publicStatus } from './claude.js';
 import { Aborted, estimateCost, extractJson, askLlm, isAbort } from './llm.js';
 import { readEvidence, parseSources, resolveSession, withRowTimes } from './evidence.js';
 import { FileIndex } from './files.js';
@@ -109,6 +110,15 @@ export class App {
       name: APP_NAME, title: APP_TITLE, version: VERSION, demo: this.demo, lang: this.lang,
       key_regex: this.keyRegex, model: this.model, votes: this.votes,
     };
+  }
+
+  /**
+   * Can the AI actions run? Claude Code found and starting (cached; `force` re-checks). Free browsing never depends on it.
+   * An injected `ask` (tests, embedding) counts as available. -> {available, path, version, via, reason, tried, message}
+   */
+  async aiStatus(force = false) {
+    if (this.rawAsk) return { available: true, path: null, version: null, via: 'injected', reason: null, tried: [], message: null };
+    return publicStatus(await checkClaude({ force }));
   }
 
   /** Strings for a UI language the user picked in the page; anything not in the whitelist gets the server's own language. */
