@@ -39,6 +39,7 @@ async function route() {
     pollAiStatus(); // the server may still be looking for Claude Code: update the buttons when it knows
     $("loading").textContent = S.loading;
     TASKS = (await api("/api/tasks")).tasks;
+    await refreshHidden();
     $("loading").hidden = true;
     bindViewControls();
     $("q").addEventListener("input", onSearchInput);

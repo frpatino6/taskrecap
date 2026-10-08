@@ -108,7 +108,7 @@ export function parseSession(file) {
 }
 
 /** Layered detection -> [key, method]. Never invents a key. */
-export function detectKey(s, keyRegex = DEFAULT_KEY_REGEX) {
+export function detectKey(s, keyRegex = DEFAULT_KEY_REGEX, generic = GENERIC_BRANCHES) {
   for (const [br] of s.branches.mostCommon()) {
     const k = findKeys(br, keyRegex);
     if (k.length) return [k[0], 'branch-regex'];
@@ -118,7 +118,7 @@ export function detectKey(s, keyRegex = DEFAULT_KEY_REGEX) {
   for (const c of s.commits) for (const k of findKeys(c, keyRegex)) counter.add(k);
   if (counter.size) return [counter.mostCommon(1)[0][0], 'prompt-or-commit-regex'];
   for (const [br] of s.branches.mostCommon()) {
-    if (!GENERIC_BRANCHES.has(br) && !br.startsWith('worktree-agent-')) return [br, 'branch-name'];
+    if (!generic.has(br) && !br.startsWith('worktree-agent-')) return [br, 'branch-name'];
   }
   return [UNASSIGNED, 'none'];
 }

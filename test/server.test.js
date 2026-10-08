@@ -59,7 +59,8 @@ test('tasks list and detail (no file paths leak to the page)', async () => {
   assert.equal(status, 200);
   const byKey = Object.fromEntries(body.tasks.map((t) => [t.key, t]));
   assert.equal(byKey['KK-1'].generatable, true);
-  assert.equal(byKey.unassigned.generatable, false);
+  const loose = body.tasks.find((t) => t.kind === 'session');
+  assert.ok(loose && loose.generatable === false, 'a session without a task key is listed on its own and cannot have a capsule yet');
   const [s2, d] = await req('GET', '/api/tasks/KK-1');
   assert.equal(s2, 200);
   assert.equal(d.sessions.length, 1);

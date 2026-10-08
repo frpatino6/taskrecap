@@ -1,4 +1,5 @@
 // Application layer shared by the CLI and the web server.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,10 +13,11 @@ import { FileIndex } from './files.js';
 import { STAGES, clip, log, makeMatchScanner, makeReporter, stage, throttle } from './progress.js';
 import { buildTimeline } from './timeline.js';
 import { CapsuleSearch } from './search.js';
-import { UNASSIGNED, redact } from './sessions.js';
+import { redact } from './sessions.js';
 import { CapsuleStore, SessionIndex, capsuleStaleness, isGeneratable, planTask } from './tasks.js';
 import { pageMessages } from './messages.js';
 import { UsageTracker, sumMetas } from './usage.js';
+import { MAX_LABEL, Overrides, isUserKey } from './units.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const WEB_DIR = path.join(ROOT, 'web');
@@ -73,14 +75,17 @@ export class App {
    * @param {(prompt: string) => Promise<[string, object]>} [o.ask] LLM function (injectable for tests)
    * @param {string|null} [o.usageFile] where the cumulative token counter is persisted
    */
-  constructor({ projectsDir, cacheDir, keyRegex = DEFAULT_KEY_REGEX, ask = null, lang = 'en', demo = false, model = 'sonnet', votes = 3, usageFile = null }) {
+  constructor({ projectsDir, cacheDir, keyRegex = DEFAULT_KEY_REGEX, ask = null, lang = 'en', demo = false, model = 'sonnet', votes = 3, usageFile = null, keyConfig = null, overridesFile = undefined }) {
     this.projectsDir = projectsDir;
     this.keyRegex = keyRegex;
+    this.keyConfig = keyConfig; // {patterns, source, ignoreBranches}: what the key detection was configured with (info + doctor)
+    // the user's corrections (rename, merge, move, split, hide) live next to the capsule cache, never inside the Claude folders
+    this.overrides = new Overrides(overridesFile === undefined ? path.join(cacheDir, '.index', 'overrides.json') : overridesFile);
     this.lang = lang;
     this.demo = demo;
     this.model = model;
     this.votes = votes;
-    this.index = new SessionIndex(projectsDir, keyRegex);
+    this.index = new SessionIndex(projectsDir, keyRegex, { overrides: this.overrides, genericBranches: keyConfig ? keyConfig.ignoreBranches : null });
     this.store = new CapsuleStore(cacheDir);
     this.capsuleSearch = new CapsuleSearch(this.store);
     this.fileIndex = new FileIndex(this.index, this.store, path.join(cacheDir, '.index', 'files.json')); // not a capsule: all() only reads <key>.json
@@ -106,6 +111,8 @@ export class App {
     return {
       name: APP_NAME, title: APP_TITLE, version: VERSION, demo: this.demo, lang: this.lang,
       key_regex: this.keyRegex, model: this.model, votes: this.votes,
+      key_patterns: this.keyConfig ? this.keyConfig.patterns : [this.keyRegex], key_source: this.keyConfig ? this.keyConfig.source : 'default',
+      ignore_branches: this.keyConfig ? this.keyConfig.ignoreBranches : [],
     };
   }
 
@@ -148,10 +155,11 @@ export class App {
   /**
    * `activity` (days with prompts, only the timeline needs it) is left out unless asked for. A task with a capsule also
    * carries `outdated` and `new_messages`: how many of its messages were written after the capsule (free, see capsuleStaleness).
+   * Units the user hid are left out unless `includeHidden`.
    */
-  listTasks({ activity = false } = {}) {
+  listTasks({ activity = false, includeHidden = false } = {}) {
     const caps = new Map(this.store.all().map((c) => [c.key, c]));
-    const tasks = this.index.tasks();
+    const tasks = this.index.tasks({ includeHidden });
     const sessions = caps.size ? this.index.sessions() : [];
     for (const t of tasks) {
       const cap = caps.get(t.key);
@@ -190,7 +198,7 @@ export class App {
       };
     });
     sessions.sort((a, b) => ((a.first_ts || '') < (b.first_ts || '') ? -1 : (a.first_ts || '') > (b.first_ts || '') ? 1 : 0));
-    const task = this.listTasks().find((t) => t.key === key) || null;
+    const task = this.listTasks({ includeHidden: true }).find((t) => t.key === key) || null;
     if (!task && !sessions.length && !cap) return null;
     return {
       task, sessions, capsule: this.withRowTimes(cap), markable: this.isMarkable(key),
@@ -200,7 +208,7 @@ export class App {
 
   /** A task key written like a work key (ABC-123) can be looked for in message text; a branch name cannot. */
   isMarkable(key) {
-    return key !== UNASSIGNED && new RegExp(`^(?:${this.keyRegex})$`).test(key);
+    return isGeneratable(key) && new RegExp(`^(?:${this.keyRegex})$`).test(key);
   }
 
   /**
@@ -210,10 +218,11 @@ export class App {
   sessionMessages({ key = '', session, scope = 'all', offset, limit }) {
     const file = resolveSession(this.index.listFiles(), session);
     const summary = this.index.sessions().find((s) => s.path === file) || null;
+    const view = key ? (this.index.taskSessions(key).find(([v]) => v.path === file) || [])[0] : null; // how the unit reads this session
     const cap = key ? this.store.load(key) : null;
     const since = cap ? Date.parse(cap.generated_at) : NaN;
     const page = pageMessages(file, {
-      key, markable: Boolean(key) && this.isMarkable(key), main: !summary || !key || summary.key === key, since, scope, offset, limit, keyRegex: this.keyRegex,
+      key, markable: Boolean(key) && this.isMarkable(key), main: !summary || !key || (view ? view.key === key : summary.key === key), since, scope, offset, limit, keyRegex: this.keyRegex,
     });
     const id = path.basename(file).replace(/\.jsonl$/, '');
     return {
@@ -240,7 +249,7 @@ export class App {
 
   /** What the free search can look inside: tasks with a capsule vs tasks searched only by key, repos and first prompt. */
   searchCoverage() {
-    return this.capsuleSearch.coverage(this.index.tasks());
+    return this.capsuleSearch.coverage(this.index.tasks().filter((t) => !t.noise));
   }
 
   /**
@@ -273,10 +282,113 @@ export class App {
     return { ...link, kind: t ? t.kind : 'key', text: t ? t.objective || t.snippet : '', last_ts: t ? t.last_ts : null, has_capsule: t ? t.has_capsule : false };
   }
 
+  // --- the user's corrections (free, local; every change can be undone) ---
+  /** Session id (full or its first characters) -> the session summary; a clear error when unknown or ambiguous. */
+  resolveSessionId(ref) {
+    const text = String(ref || '').trim().toLowerCase();
+    if (text.length < 4) throw new UserError('Which session? Send its id.');
+    const all = this.index.sessions(); // hidden sessions are in here too: hiding only changes how they are grouped
+    const hits = all.filter((s) => s.id.toLowerCase() === text || s.id.toLowerCase().startsWith(text));
+    const exact = hits.filter((s) => s.id.toLowerCase() === text);
+    const pick = exact.length === 1 ? exact : hits;
+    if (!pick.length) throw new UserError('That session does not exist (any more).');
+    if (pick.length > 1) throw new UserError('Several sessions start with that id: send more characters.');
+    return pick[0];
+  }
+
+  /** A unit that exists now (hidden ones included), or a clear error. */
+  requireUnit(key, what = 'unit') {
+    const u = this.index.unitMap().units.get(String(key || ''));
+    if (!u) throw new UserError(`That ${what} does not exist (any more).`);
+    return u;
+  }
+
+  static cleanLabel(label, { required = false } = {}) {
+    const t = String(label == null ? '' : label).replace(/\s+/g, ' ').trim();
+    if (required && !t) throw new UserError('Type a name first.');
+    if (t.length > MAX_LABEL) throw new UserError(`Use at most ${MAX_LABEL} characters for a name.`);
+    return t;
+  }
+
+  /** What the page shows after a change: the operation that Undo would revert. */
+  changeResult(batch) {
+    const last = this.overrides.last();
+    return { ok: true, batch, undo: last ? { batch: last.batch, type: last.type } : null };
+  }
+
+  renameUnit(key, label) {
+    this.requireUnit(key);
+    return this.changeResult(this.overrides.add([{ type: 'rename', unit: String(key), label: App.cleanLabel(label) }]));
+  }
+
+  /** Merge units into one group of the user's. Joining a group adds the others to it; two groups cannot be merged (split one first). */
+  mergeUnits(keys, label = '') {
+    const list = [...new Set((Array.isArray(keys) ? keys : []).map(String))];
+    if (list.length < 2) throw new UserError('Pick at least two things to merge.');
+    for (const k of list) this.requireUnit(k);
+    const groups = list.filter(isUserKey);
+    if (groups.length > 1) throw new UserError('Two groups cannot be merged into each other. Split one of them first.');
+    const target = groups[0] || `user:${crypto.randomUUID()}`;
+    const members = list.filter((k) => k !== target);
+    const name = App.cleanLabel(label);
+    const batch = this.overrides.add([{ type: 'merge', unit: target, members, ...(name ? { label: name } : {}) }]);
+    return { ...this.changeResult(batch), unit: target };
+  }
+
+  /** Put one session in another unit (`to` = unit key) or in a brand-new group (`to` = 'new'). */
+  moveSession(session, to, label = '') {
+    const s = this.resolveSessionId(session);
+    if (to === 'new') {
+      const unit = `user:${crypto.randomUUID()}`;
+      const name = App.cleanLabel(label);
+      const batch = this.overrides.add([{ type: 'merge', unit, members: [], ...(name ? { label: name } : {}) }, { type: 'move', session: s.id, to: unit }]);
+      return { ...this.changeResult(batch), unit };
+    }
+    this.requireUnit(to, 'destination');
+    return { ...this.changeResult(this.overrides.add([{ type: 'move', session: s.id, to: String(to) }])), unit: String(to) };
+  }
+
+  /** Dissolve a group of the user's: its sessions go back to where they belong on their own. */
+  splitUnit(key) {
+    const u = this.requireUnit(key, 'group');
+    if (u.source !== 'user') throw new UserError('Only groups you made can be split. Use "move session" for anything else.');
+    return this.changeResult(this.overrides.add([{ type: 'split', unit: u.key }]));
+  }
+
+  hideUnit(key, hidden = true) {
+    this.requireUnit(key);
+    return this.changeResult(this.overrides.add([{ type: 'hide', unit: String(key), hidden: hidden !== false }]));
+  }
+
+  hideSession(session, hidden = true) {
+    const s = this.resolveSessionId(session);
+    return this.changeResult(this.overrides.add([{ type: 'hide', session: s.id, hidden: hidden !== false }]));
+  }
+
+  undoChange(ref = null) {
+    const undone = this.overrides.undo(ref || null);
+    return { ok: true, undone: undone.map((o) => ({ type: o.type, unit: o.unit || null, session: o.session || null })), undo: this.changeResult(null).undo };
+  }
+
+  /** What Undo would revert next (null when nothing). */
+  changeHistory() {
+    const last = this.overrides.last();
+    return { last: last ? { batch: last.batch, type: last.type, unit: (last.ops[0] || {}).unit || null } : null, count: last ? last.count : 0, corrupt: Boolean(this.overrides.corrupt) };
+  }
+
+  /** The hidden units and sessions, so they can be shown again. */
+  hiddenItems() {
+    const units = this.index.tasks({ includeHidden: true }).filter((t) => t.hidden).map((t) => ({ key: t.key, label: t.label, kind: t.kind, snippet: t.snippet, sessions: t.sessions }));
+    const sessions = this.index.unitMap().hiddenSessions.map((s) => ({
+      id: s.id, id8: s.id.slice(0, 8), project: s.project, title: s.unit_title || s.snippet || '', first_ts: s.first_ts, prompts: s.n_prompts,
+    }));
+    return { units, sessions };
+  }
+
   // --- AI actions (spend tokens; callers must have confirmed with the user first) ---
   checkKey(key) {
     if (!isGeneratable(key)) {
-      throw new UserError('Sessions without a task key cannot be turned into a capsule. ' +
+      throw new UserError('Sessions without a task key cannot be turned into a capsule yet (capsules for them arrive in a later step). ' +
         'Name your branches after the task, or mention a task key in your prompts.');
     }
   }
@@ -333,7 +445,7 @@ export class App {
   /** One line per recent task: what the AI search reads. Redacted, capped. */
   searchCatalog() {
     const caps = new Map(this.store.all().map((c) => [c.key, c.capsule || {}]));
-    return this.index.tasks().filter((t) => t.kind !== UNASSIGNED).slice(0, SEARCH_MAX_TASKS).map((t) => {
+    return this.index.tasks().filter((t) => !t.noise).slice(0, SEARCH_MAX_TASKS).map((t) => {
       const c = caps.get(t.key);
       const what = c && c.objective ? c.objective : t.snippet;
       const decisions = c && c.decisions ? c.decisions.slice(0, 3).map((d) => d.decision).join('; ') : '';

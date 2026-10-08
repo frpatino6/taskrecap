@@ -1,0 +1,2 @@
+{"type": "user", "timestamp": "2026-09-24T17:10:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-api", "message": {"role": "user", "content": "resume"}}
+{"type": "user", "timestamp": "2026-09-24T17:12:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-api", "message": {"role": "user", "content": "ok thanks"}}

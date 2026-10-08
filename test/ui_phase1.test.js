@@ -21,7 +21,7 @@ test('main landmarks are focusable and headings can take focus', () => {
   assert.match(html, /<main id="home" tabindex="-1" hidden>/);
   assert.match(html, /<main id="detail" tabindex="-1" hidden>/);
   assert.match(html, /<h1 id="home-title" tabindex="-1">/);
-  assert.match(html, /<h1 tabindex="-1">\$\{esc\(key\)\}<\/h1>/);
+  assert.match(html, /<h1 tabindex="-1">\$\{esc\(unitTitle\(t\)\)\}<\/h1>/);
   assert.match(html, /focus\(\{ preventScroll: true \}\)/);
 });
 

@@ -1,0 +1,5 @@
+{"type": "custom-title", "customTitle": "Rewrite the onboarding guide", "sessionId": "f5a5b5c5-1304-4304-8304-000000001304"}
+{"type": "user", "timestamp": "2026-09-30T09:05:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-docs", "message": {"role": "user", "content": "Rewrite the onboarding guide so a new developer can run the whole project in ten minutes."}}
+{"type": "assistant", "timestamp": "2026-09-30T09:05:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-docs", "message": {"role": "assistant", "content": [{"type": "text", "text": "I restructured it into prerequisites, one setup command and a troubleshooting table."}]}}
+{"type": "user", "timestamp": "2026-09-30T09:40:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-docs", "message": {"role": "user", "content": "Add a short section that explains how to run the tests and where the CI results live."}}
+{"type": "assistant", "timestamp": "2026-09-30T09:40:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-docs", "message": {"role": "assistant", "content": [{"type": "text", "text": "Added a Testing section with the commands and a link to the CI dashboard."}]}}

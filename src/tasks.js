@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_KEY_REGEX } from './config.js';
 import {
-  GENERIC_BRANCHES, KEY_MIN_MENTIONS, UNASSIGNED, detectKey, findKeys, parseSession, projectName, promptDays, promptKeyCounts, redact,
+  GENERIC_BRANCHES, KEY_MIN_MENTIONS, detectKey, findKeys, parseSession, projectName, promptDays, promptKeyCounts, redact,
 } from './sessions.js';
 import * as capsule from './capsule.js';
 import { isNoise } from './segment.js';
+import { buildUnits, cutTitle, emptyState, hasContent, isGeneratableKey, relatedUnits, sessionTitle, stripTags } from './units.js';
 
 /**
  * When the user's own messages were written, in epoch ms (automatic ones such as "[Request interrupted" are left out):
@@ -25,11 +26,11 @@ export function promptTimes(s, keyRegex) {
 }
 
 /** Light summary of one session file (the heavy prompt list is dropped after detection). */
-export function summarizeSession(file, keyRegex) {
+export function summarizeSession(file, keyRegex, generic = GENERIC_BRANCHES) {
   const s = parseSession(file);
-  const [key, method] = detectKey(s, keyRegex);
+  const [key, method] = detectKey(s, keyRegex, generic);
   const prompts = s.prompts;
-  const branches = s.branches.mostCommon().map(([b]) => b).filter((b) => !GENERIC_BRANCHES.has(b));
+  const branches = s.branches.mostCommon().map(([b]) => b).filter((b) => !generic.has(b));
   const mentions = Object.fromEntries(promptKeyCounts(s, keyRegex));
   const { days, keyDays } = promptDays(s, keyRegex);
   // days with prompts of the session, and, for each secondary key it cites often enough, the days of the prompts citing it
@@ -40,7 +41,8 @@ export function summarizeSession(file, keyRegex) {
     id: s.id, path: file, project: projectName(s), key, method,
     first_ts: s.first_ts, last_ts: s.last_ts, n_prompts: prompts.length, size: s.size,
     branch: branches[0] || '', title: s.title,
-    snippet: prompts.length ? redact(prompts[0].text).replace(/\n/g, ' ').slice(0, 140) : '',
+    unit_title: sessionTitle(s), has_content: hasContent(s), // the name of a session unit, and whether it is more than noise
+    snippet: prompts.length ? redact(stripTags(prompts[0].text)).slice(0, 140) : '', // editor tags are not part of what the user said
     mentions, days, mention_days: mentionDays, prompt_ts: times.all, mention_ts: mentionTimes,
   };
 }
@@ -88,9 +90,12 @@ export function taskActivity(key, sessions) {
 
 /** All sessions under `projectsDir`, parsed once per file version (path + mtime + size). */
 export class SessionIndex {
-  constructor(projectsDir, keyRegex = DEFAULT_KEY_REGEX) {
+  /** `overrides`: the user's corrections (see units.js); `genericBranches`: extra branch names that mean "no task". */
+  constructor(projectsDir, keyRegex = DEFAULT_KEY_REGEX, { overrides = null, genericBranches = null } = {}) {
     this.projectsDir = projectsDir;
     this.keyRegex = keyRegex;
+    this.overrides = overrides;
+    this.generic = genericBranches && genericBranches.length ? new Set([...GENERIC_BRANCHES, ...genericBranches]) : GENERIC_BRANCHES;
     this.cache = new Map();
   }
 
@@ -127,7 +132,7 @@ export class SessionIndex {
       const sig = `${st.mtimeMs}:${st.size}`;
       let hit = this.cache.get(p);
       if (!hit || hit.sig !== sig) {
-        hit = { sig, summary: summarizeSession(p, this.keyRegex) };
+        hit = { sig, summary: summarizeSession(p, this.keyRegex, this.generic) };
         this.cache.set(p, hit);
       }
       if (hit.summary.n_prompts > 0) out.push(hit.summary); // empty sessions are noise
@@ -135,43 +140,60 @@ export class SessionIndex {
     return out;
   }
 
-  /** Sessions that belong to `key`: it is their main key, or their prompts cite it often enough. -> [[session, mode]] */
-  taskSessions(key) {
-    const out = [];
-    for (const s of this.sessions()) {
-      if (s.key === key || (s.mentions[key] || 0) >= KEY_MIN_MENTIONS) out.push([s, 'keyed']);
-    }
-    return out;
+  /** Units and the sessions in each, after the user's corrections: {units: Map(key -> unit), hiddenSessions}. See buildUnits. */
+  unitMap() {
+    return buildUnits(this.sessions(), this.overrides ? this.overrides.state() : emptyState(), { keyRegex: this.keyRegex });
   }
 
-  /** One entry per task key, newest activity first; 'unassigned' always last. */
-  tasks(keyRegex = null) {
-    const full = new RegExp(`^(?:${keyRegex || this.keyRegex})$`); // fullmatch, without touching the shared global regex
-    const keys = new Map();
-    for (const s of this.sessions()) {
-      const names = new Set([s.key, ...Object.entries(s.mentions).filter(([, n]) => n >= KEY_MIN_MENTIONS).map(([k]) => k)]);
-      for (const k of names) {
-        if (!keys.has(k)) keys.set(k, []);
-        keys.get(k).push(s);
-      }
-    }
+  /** Changes whenever the user's corrections change (persisted cache signatures include it). */
+  overridesSignature() {
+    return this.overrides ? this.overrides.signature() : '';
+  }
+
+  /** Sessions that belong to unit `key` (a task key, a branch, one session or a group of the user's). -> [[session view, mode]] */
+  taskSessions(key) {
+    const u = this.unitMap().units.get(key);
+    return u ? u.members : [];
+  }
+
+  /**
+   * One entry per work unit, newest activity first. Units the user hid are left out unless `includeHidden`.
+   * `noise` marks a session with no real content (the page folds those into one group); `related` is a hint, never a grouping.
+   */
+  tasks({ includeHidden = false } = {}) {
+    const { units } = this.unitMap();
     const out = [];
-    for (const [k, ss] of keys) {
-      const activity = taskActivity(k, ss);
+    for (const u of units.values()) {
+      if (u.hidden && !includeHidden) continue;
+      const ss = u.members.map(([v]) => v);
+      const activity = taskActivity(u.key, ss);
       ss.sort((a, b) => ((a.first_ts || '') < (b.first_ts || '') ? -1 : (a.first_ts || '') > (b.first_ts || '') ? 1 : 0));
-      const kind = k === UNASSIGNED ? UNASSIGNED : (full.test(k) ? 'key' : 'branch');
-      const firsts = ss.map((s) => s.first_ts).filter(Boolean);
-      const lasts = ss.map((s) => s.last_ts).filter(Boolean);
+      const firsts = ss.map((v) => v.first_ts).filter(Boolean);
+      const lasts = ss.map((v) => v.last_ts).filter(Boolean);
+      const projects = [...new Set(ss.map((v) => v.project))].sort();
+      const title = u.source === 'session' ? u.sessionTitle : null;
+      const merged = u.mergedFrom.length ? u.mergedFrom.slice(0, 2).join(' + ') + (u.mergedFrom.length > 2 ? ` +${u.mergedFrom.length - 2}` : '') : null;
       out.push({
-        key: k, kind, sessions: ss.length,
-        projects: [...new Set(ss.map((s) => s.project))].sort(),
+        key: u.key, id: u.id, kind: u.source, source: u.source, sessions: ss.length, projects,
+        label: u.label || (u.source === 'key' || u.source === 'branch' ? u.key : u.source === 'user' ? u.defaultLabel || merged : title),
+        renamed: u.renamed, hidden: u.hidden, noise: u.noise, unsorted: u.source === 'session', mergedFrom: u.mergedFrom, can_split: u.source === 'user',
         first_ts: firsts.length ? firsts.reduce((a, b) => (a < b ? a : b)) : null,
         last_ts: lasts.length ? lasts.reduce((a, b) => (a > b ? a : b)) : null,
-        snippet: ss[0].snippet, prompts: ss.reduce((a, s) => a + s.n_prompts, 0), activity,
+        snippet: title || ss[0].snippet, prompts: ss.reduce((a, v) => a + v.n_prompts, 0), activity,
+        session_ids: ss.map((v) => v.id),
       });
     }
     out.sort((a, b) => ((b.last_ts || '') < (a.last_ts || '') ? -1 : (b.last_ts || '') > (a.last_ts || '') ? 1 : 0));
-    out.sort((a, b) => (a.kind === UNASSIGNED) - (b.kind === UNASSIGNED)); // stable: 'unassigned' goes last
+    const items = [];
+    for (const t of out) {
+      if (t.source !== 'session' || t.noise) continue;
+      const view = units.get(t.key).members[0][0];
+      const times = [...(view.prompt_ts || [])].sort((a, b) => a - b);
+      const neutral = t.label || `${t.projects[0] || ''} · ${(t.first_ts || '').slice(0, 10)}`;
+      items.push({ key: t.key, label: cutTitle(neutral, 60), project: t.projects[0] || '', times });
+    }
+    const related = relatedUnits(items);
+    for (const t of out) t.related = related.get(t.key) || [];
     return out;
   }
 }
@@ -184,7 +206,7 @@ export function planTask(index, key) {
 }
 
 export function isGeneratable(key) {
-  return key !== UNASSIGNED;
+  return isGeneratableKey(key);
 }
 
 const safeName = (key) => key.replace(/[^\p{L}\p{N}_.-]/gu, '_');

@@ -95,7 +95,7 @@ export class FileIndex {
     this.load();
     const paths = this.index.sessions().map((s) => s.path); // sessions with prompts, already summarised
     const sigs = new Map(paths.map((p) => [p, this.sessionSig(p)]));
-    const sig = `${this.store.stableSignature()}#${paths.map((p) => `${p}:${sigs.get(p)}`).join('|')}`; // stable: it is persisted
+    const sig = `${this.store.stableSignature()}#${paths.map((p) => `${p}:${sigs.get(p)}`).join('|')}~${this.index.overridesSignature ? this.index.overridesSignature() : ''}`; // stable: it is persisted; a correction (merge, move, hide) changes the links
     const rev = this.store.revision;
     // `rev` also catches a capsule rewritten with the same mtime and size; the first call trusts the persisted index
     if (this.cur && this.cur.sig === sig && (this.rev === undefined || this.rev === rev)) {

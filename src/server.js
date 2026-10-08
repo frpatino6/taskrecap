@@ -156,7 +156,7 @@ export function makeHandler(app) {
 export const WEB_ASSETS = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.css': ['app.css', 'text/css; charset=utf-8'],
-  ...Object.fromEntries(['core', 'home', 'timeline', 'ai', 'files', 'detail', 'evidence', 'main'].map((n) => [`/js/${n}.js`, [`js/${n}.js`, 'text/javascript; charset=utf-8']])),
+  ...Object.fromEntries(['core', 'home', 'timeline', 'ai', 'files', 'units', 'detail', 'evidence', 'main'].map((n) => [`/js/${n}.js`, [`js/${n}.js`, 'text/javascript; charset=utf-8']])),
 };
 
 async function handleGet(app, url, route, res) {
@@ -169,7 +169,9 @@ async function handleGet(app, url, route, res) {
   if (route === '/api/strings') return send(res, 200, app.stringsFor(url.searchParams.get('lang')));
   if (route === '/api/langs') return send(res, 200, { langs: listLangs() });
   if (route === '/api/usage') return send(res, 200, app.usageSnapshot());
-  if (route === '/api/tasks') return send(res, 200, { tasks: app.listTasks() });
+  if (route === '/api/tasks') return send(res, 200, { tasks: app.listTasks({ includeHidden: url.searchParams.get('hidden') === '1' }) });
+  if (route === '/api/units/history') return send(res, 200, app.changeHistory());
+  if (route === '/api/units/hidden') return send(res, 200, app.hiddenItems());
   if (route === '/api/timeline') return send(res, 200, app.timeline(timelineOptions(url.searchParams)));
   const m = route.match(/^\/api\/tasks\/(.+)$/);
   if (m) {
@@ -197,6 +199,21 @@ async function handlePost(app, req, route, res) {
     if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
     await readJson(req);
     return send(res, 200, await app.recheckAi());
+  }
+  if (route.startsWith('/api/units/')) { // the user's corrections: JSON only, local only, every one can be undone
+    if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
+    const body = await readJson(req);
+    const action = route.slice('/api/units/'.length);
+    if (action === 'rename') return send(res, 200, app.renameUnit(body.key, body.label));
+    if (action === 'merge') return send(res, 200, app.mergeUnits(body.keys, body.label));
+    if (action === 'move') return send(res, 200, app.moveSession(body.session, body.to, body.label));
+    if (action === 'split') return send(res, 200, app.splitUnit(body.key));
+    if (action === 'hide') {
+      if (body.session) return send(res, 200, app.hideSession(body.session, body.hidden !== false));
+      return send(res, 200, app.hideUnit(body.key, body.hidden !== false));
+    }
+    if (action === 'undo') return send(res, 200, app.undoChange(body.batch || null));
+    return sendError(res, 404, 'Not found');
   }
   const isGenerate = route === '/api/generate';
   const isAiSearch = route === '/api/ai-search';

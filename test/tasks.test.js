@@ -15,15 +15,21 @@ function fixture() {
   return proj;
 }
 
-test('tasks are grouped by key, then branch, with unassigned last and empty sessions hidden', () => {
+test('tasks are grouped by key, then branch; a session with neither is its own unit; empty sessions are hidden', () => {
   const idx = new SessionIndex(fixture());
   const tasks = idx.tasks();
   assert.deepEqual(tasks.map((t) => [t.key, t.kind]), [
-    ['KK-1', 'key'], ['feature/autocomplete', 'branch'], ['unassigned', 'unassigned'],
+    ['KK-1', 'key'], ['feature/autocomplete', 'branch'], ['session:BBBBBBBB', 'session'],
   ]);
   assert.equal(idx.sessions().length, 3); // the empty session does not count
   assert.equal(tasks.find((t) => t.key === 'KK-1').prompts, 3);
+  const loose = tasks.find((t) => t.key === 'session:BBBBBBBB');
+  assert.equal(loose.noise, true, '"hello" says nothing about the work: the page folds it into "Sessions without content"');
+  assert.equal(loose.unsorted, true);
   assert.equal(isGeneratable('unassigned'), false);
+  assert.equal(isGeneratable('session:BBBBBBBB'), false);
+  assert.equal(isGeneratable('user:1234'), false);
+  assert.equal(isGeneratable('KK-1'), true);
 });
 
 test('a key cited often in another session still pulls that session into the task', () => {

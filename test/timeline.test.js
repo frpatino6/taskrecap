@@ -227,21 +227,21 @@ test('GET /api/timeline serves the layout; /api/tasks stays light (no activity)'
   const proj = path.join(tmp, 'projects');
   makeSession(proj, 'AAAAAAAA', [[at(9, 1), 'KK-1 a', 'ok'], [at(9, 3), 'KK-1 b', 'ok']], { branch: 'fix/KK-1', cwd: '/x/app' });
   makeSession(proj, 'BBBBBBBB', [[at(9, 2), 'KK-2 a', 'ok']], { branch: 'fix/KK-2', cwd: '/x/api', proj: 'p2' });
-  makeSession(proj, 'CCCCCCCC', [[at(9, 9), 'loose talk', 'ok']], { branch: 'main', cwd: '/x/app', proj: 'p3' });
+  makeSession(proj, 'CCCCCCCC', [[at(9, 9), 'loose talk about nothing in particular', 'ok']], { branch: 'main', cwd: '/x/app', proj: 'p3' });
   const app = new App({ projectsDir: proj, cacheDir: path.join(tmp, 'cache'), usageFile: path.join(tmp, 'usage.json') });
   const srv = await startServer(app, 0);
   try {
     const [status, tl] = await get(srv, '/api/timeline');
     assert.equal(status, 200);
-    assert.deepEqual(tl.lanes.map((l) => l.key), ['KK-1', 'KK-2', 'unassigned']);
+    assert.deepEqual(tl.lanes.map((l) => l.key), ['session:CCCCCCCC', 'KK-1', 'KK-2']); // newest first; the loose session is its own lane
     assert.equal(tl.lanes.find((l) => l.key === 'KK-1').marks.length, 2);
-    assert.equal(tl.lanes[tl.lanes.length - 1].key, 'unassigned');
+    assert.equal(tl.lanes[0].unsorted, true);
     assert.deepEqual(tl.coverage, { ready: 0, total: 2, outdated: 0 });
     assert.deepEqual(tl.all_repos, ['api', 'app']);
     const [, onlyApi] = await get(srv, '/api/timeline?repo=api');
     assert.deepEqual(onlyApi.lanes.map((l) => l.key), ['KK-2']);
-    const [, picked] = await get(srv, `/api/timeline?keys=${encodeURIComponent('KK-1\nunassigned')}`);
-    assert.deepEqual(picked.lanes.map((l) => l.key), ['KK-1', 'unassigned']);
+    const [, picked] = await get(srv, `/api/timeline?keys=${encodeURIComponent('KK-1\nsession:CCCCCCCC')}`);
+    assert.deepEqual(picked.lanes.map((l) => l.key), ['session:CCCCCCCC', 'KK-1']);
     const [, none] = await get(srv, '/api/timeline?capsule=none&limit=1');
     assert.equal(none.shown, 1);
     assert.equal(none.total, 2);
@@ -273,21 +273,20 @@ test('GET /api/timeline ignores an overflow date such as from=2026-02-30 instead
   }
 });
 
-test('"tasks" counts match the coverage ring: sessions without a task key are reported apart', () => {
+test('"tasks" counts every unit with real content; sessions without content are reported apart; the ring counts only what can have a capsule', () => {
   const tasks = [
     task('A-1', [cell(9, 1, 1)], { has_capsule: true }),
     task('A-2', [cell(9, 2, 1)]),
-    task('unassigned', [cell(9, 3, 1)], { kind: 'unassigned', generatable: false }),
+    task('session:aaaa1111', [cell(9, 3, 1)], { kind: 'session', generatable: false }),
+    task('session:bbbb2222', [cell(9, 4, 1)], { kind: 'session', generatable: false, noise: true }),
   ];
   const tl = buildTimeline(tasks);
-  assert.deepEqual(tl.coverage, { ready: 1, total: 2, outdated: 0 });
-  assert.deepEqual([tl.task_shown, tl.task_total], [2, tl.coverage.total]); // the footer and the ring talk about the same tasks
-  assert.deepEqual([tl.unassigned_shown, tl.unassigned_total], [1, 1]);
-  assert.deepEqual([tl.shown, tl.total], [3, 3]); // lanes drawn (what "show more" counts) still include the unassigned one
-  const noUnassigned = buildTimeline(tasks.slice(0, 2));
-  assert.deepEqual([noUnassigned.unassigned_shown, noUnassigned.unassigned_total], [0, 0]);
+  assert.deepEqual(tl.coverage, { ready: 1, total: 2, outdated: 0 }); // the ring: units that CAN have a capsule
+  assert.deepEqual([tl.task_shown, tl.task_total, tl.empty_total], [3, 3, 1]); // the footer: every unit with content; the empty one is apart
+  assert.deepEqual([tl.shown, tl.total], [3, 3]);
+  assert.ok(!tl.lanes.some((l) => l.key === 'session:bbbb2222'), 'a session without content never gets a lane');
   const limited = buildTimeline(tasks, { limit: 1 });
-  assert.deepEqual([limited.task_shown, limited.task_total, limited.unassigned_total], [1, 2, 1]);
+  assert.deepEqual([limited.task_shown, limited.task_total, limited.empty_total], [1, 3, 1]);
 });
 
 test('a reversed date range selects the same days as the ordered one and reports the range it applied', () => {

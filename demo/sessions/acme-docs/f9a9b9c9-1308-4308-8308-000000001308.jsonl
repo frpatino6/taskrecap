@@ -1,0 +1,1 @@
+{"type": "user", "timestamp": "2026-09-29T13:00:00.000Z", "gitBranch": "main", "cwd": "/home/demo/acme-docs", "message": {"role": "user", "content": "<ide_opened_file>The user opened the file /home/demo/acme-docs/README.md in the IDE. This may or may not be related to the current task.</ide_opened_file>"}}

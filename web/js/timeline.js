@@ -41,8 +41,8 @@ function fillRepoSelect(repos) {
 const dayLabel = (d, withYear) => new Date(d + "T12:00:00").toLocaleDateString(undefined, withYear ? { month: "short", day: "numeric", year: "numeric" } : { month: "short", day: "numeric" });
 const promptsText = (n) => (n === 1 ? S.tl_prompt : fmt(S.tl_prompts, { n }));
 const activeDaysText = (n) => (n === 1 ? S.tl_active_day : fmt(S.tl_active_days, { n }));
-const laneKey = (l) => (l.kind === "unassigned" ? S.tl_unassigned : l.key);
-const laneRepos = (l) => (l.kind === "unassigned" ? S.tl_unassigned_hint : l.projects.length > 1 ? `${l.project} +${l.projects.length - 1}` : l.project);
+const laneKey = (l) => unitTitle(l);
+const laneRepos = (l) => (l.projects.length > 1 ? `${l.project} +${l.projects.length - 1}` : l.project);
 const capsuleText = (l) => (l.generatable ? (l.has_capsule ? S.chip_capsule + (l.outdated ? " · " + fmt(S.stale_tip, { n: l.new_messages }) : "") : S.chip_no_capsule) : "");
 
 function laneSummary(l) {
@@ -70,8 +70,9 @@ function renderTimeline() {
       return `<button type="button" class="vz-mark${m.slot >= 0 ? " s" + m.slot : " s-other"}" tabindex="-1" aria-label="${esc(fmt(S.tl_mark_label, { key: laneKey(l), repo: m.project, day: dayLabel(m.day, true), prompts: promptsText(m.n) }))}" data-key="${esc(l.key)}" data-day="${esc(m.day)}" data-n="${m.n}" data-repo="${esc(m.project)}" style="left:calc(${m.x}% + ${nudge}px);width:${m.size}px;height:${m.size}px"></button>`;
     }).join("");
     return `<div class="vz-row vz-lane">
-      <button type="button" class="vz-label" data-key="${esc(l.key)}" data-tip="lane" aria-label="${esc(fmt(S.tl_open, { key: laneSummary(l) }))}">
-        <span class="vz-key">${esc(laneKey(l))}${l.has_capsule ? '<i aria-hidden="true">✓</i>' : ""}${l.has_capsule && l.outdated ? `<i class="vz-stale" aria-hidden="true" title="${esc(fmt(S.stale_tip, { n: l.new_messages }))}">↻</i>` : ""}</span><span class="vz-sub">${esc(laneRepos(l))}</span></button>
+      <div class="vz-labelwrap"><button type="button" class="vz-label${l.unsorted ? " unsorted" : ""}" data-key="${esc(l.key)}" data-tip="lane" aria-label="${esc(fmt(S.tl_open, { key: laneSummary(l) }))}">
+        <span class="vz-key">${esc(laneKey(l))}${l.has_capsule ? '<i aria-hidden="true">✓</i>' : ""}${l.has_capsule && l.outdated ? `<i class="vz-stale" aria-hidden="true" title="${esc(fmt(S.stale_tip, { n: l.new_messages }))}">↻</i>` : ""}</span><span class="vz-sub">${l.unsorted ? esc(S.chip_unsorted) + " · " : ""}${esc(laneRepos(l))}${(l.related || []).length ? " · " + esc(S.related) + ": " + esc(l.related.map((r) => r.label).join(" · ")) : ""}</span></button>
+        <button type="button" class="lanemenu" data-menu="${esc(l.key)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(fmt(S.menu_label, { name: laneKey(l) }))}">⋯</button></div>
       <div class="vz-track">${grid(tl.ticks)}<i class="vz-line" style="left:${l.line.x1}%;width:${Math.max(0, l.line.x2 - l.line.x1)}%"></i>${marks}</div></div>`;
   };
   // labels are centred on their day, except at the two ends where they would spill outside the chart
@@ -82,7 +83,7 @@ function renderTimeline() {
   const more = tl.hidden > 0 ? `<button type="button" class="cta ghost sm" id="vz-more">${esc(fmt(S.tl_more, { n: Math.min(12, tl.hidden) }))}</button>` : "";
   el.innerHTML = head + `<div class="vz-scroll"><div class="vz-chart">
     <div class="vz-row" aria-hidden="true"><span class="vz-axis-pad"></span><div class="vz-ticks">${ticks}</div></div>${tl.lanes.map(lane).join("")}</div></div>
-    <div class="vz-foot"><span>${esc(fmt(tl.unassigned_shown ? S.tl_showing_unassigned : S.tl_showing, { shown: tl.task_shown, total: tl.task_total }))}${tl.undated ? " · " + esc(fmt(S.tl_undated, { n: tl.undated })) : ""}</span>${more}</div>
+    <div class="vz-foot"><span>${esc(fmt(S.tl_showing, { shown: tl.task_shown, total: tl.task_total }))}${tl.empty_total ? " · " + esc(fmt(S.tl_empty_folded, { n: tl.empty_total })) : ""}${tl.undated ? " · " + esc(fmt(S.tl_undated, { n: tl.undated })) : ""}</span>${more}</div>
     <p class="note" style="margin:10px 18px 0">${esc(S.tl_note)}</p>` + table;
 }
 
@@ -104,6 +105,8 @@ function bindTimeline() {
   el.addEventListener("click", (e) => {
     if (e.target.closest("#vz-more")) { VZ.limit += 12; loadTimeline(); return; }
     if (e.target.closest("#vz-empty-reset")) { resetVz(); return; }
+    const mb = e.target.closest(".lanemenu");
+    if (mb) { hideTip(); openUnitMenu(mb, mb.dataset.menu); return; }
     const t = e.target.closest("[data-key]");
     if (t) { hideTip(); location.hash = "#/task/" + encodeURIComponent(t.dataset.key); }
   });
