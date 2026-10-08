@@ -39,7 +39,7 @@ test('the demo has at least 6 sample capsules plus tasks that deliberately have 
   assert.ok(ready.length >= 6, 'home should show mostly "Capsule ready" cards');
   for (const t of ready) assert.ok(t.objective.length > 40, `${t.key} needs a readable objective`);
   assert.equal(tasks.get('SHOP-106').has_capsule, false, 'SHOP-106 stays without a capsule (AI generate demo)');
-  assert.equal(tasks.get('unassigned').has_capsule, false);
+  assert.equal(tasks.get('session:d4e5f6a7').has_capsule, false);
 });
 
 test('every sample capsule belongs to a task of the demo sessions and its .md matches its .json', () => {
@@ -141,7 +141,9 @@ test('the demo draws a believable timeline: 3 repos, about 4 weeks, a task over 
   const a = lane('API-214');
   const b = lane('API-216');
   assert.ok(a.marks.some((m) => b.marks.some((n) => n.day === m.day)), 'the interleaved pair overlaps on a day');
-  assert.ok(lane('unassigned'), 'unassigned stays visible');
+  assert.ok(lane('session:d4e5f6a7'), 'a session without a task key is drawn as its own lane');
+  assert.ok(!tl.lanes.some((l) => l.key === 'session:f6a6b6c6'), 'a session without content gets no lane');
+  assert.equal(tl.empty_total, 4, 'the four sessions without content are counted apart');
   assert.deepEqual(tl.coverage, { ready: 6, total: 13, outdated: 1 });
   assert.ok(tl.repos.every((r) => r.slot >= 0), 'three repos fit the three validated colours');
 });

@@ -1,5 +1,4 @@
 // Layout of the home-page timeline (one lane per task, one dot per day with prompts). Pure functions: no I/O, no LLM.
-import { UNASSIGNED } from './sessions.js';
 
 export const DEFAULT_LIMIT = 12;
 export const MAX_REPO_COLORS = 3; // the first three categorical slots are the ones validated for all-pairs use; later repos share one neutral colour
@@ -67,7 +66,10 @@ const parseLimit = (v) => (v === 'all' ? Infinity : Number.isInteger(v) && v > 0
  * tasks: [{key, kind, activity: [{day, n, project}], has_capsule, generatable, ...}] in display order (newest first).
  * opts: {repo, from, to, limit (number | 'all'), keys: [..] (exactly these tasks, e.g. search hits), capsule: 'none' | 'ready'}
  */
-export function buildTimeline(tasks, opts = {}) {
+export function buildTimeline(allTasks, opts = {}) {
+  // sessions with no real content are folded away on the page: they never get a lane (their count is reported separately)
+  const tasks = allTasks.filter((t) => !t.noise);
+  const empty = allTasks.length - tasks.length;
   const slots = repoSlots(tasks.flatMap((t) => (t.activity || []).map((c) => c.project)));
   const generatable = tasks.filter((t) => t.generatable);
   const coverage = { ready: generatable.filter((t) => t.has_capsule).length, total: generatable.length, outdated: generatable.filter((t) => t.has_capsule && t.outdated).length };
@@ -103,7 +105,8 @@ export function buildTimeline(tasks, opts = {}) {
     }));
     const project = primaryRepo(cells);
     return {
-      key: task.key, kind: task.kind || (task.key === UNASSIGNED ? UNASSIGNED : 'key'),
+      key: task.key, kind: task.kind || 'key', label: task.label || null, unsorted: !!task.unsorted,
+      related: (task.related || []).map((r) => ({ key: r.key, label: r.label })),
       project, slot: slots.has(project) ? slots.get(project) : -1,
       projects: [...new Set(cells.map((c) => c.project))].sort(),
       has_capsule: !!task.has_capsule, outdated: !!(task.has_capsule && task.outdated), new_messages: task.has_capsule ? task.new_messages || 0 : 0,
@@ -121,11 +124,12 @@ export function buildTimeline(tasks, opts = {}) {
     repos: present.map((name) => ({ name, slot: slots.has(name) ? slots.get(name) : -1 })),
     all_repos: [...slots.keys()],
     lanes, total: matching.length, shown: lanes.length, hidden: matching.length - lanes.length, undated, coverage,
-    // "tasks" are the ones that can have a capsule (what the coverage ring counts); sessions without a task key are a separate group
-    task_total: matching.filter((m) => m.task.generatable !== false).length,
-    task_shown: lanes.filter((l) => l.generatable).length,
-    unassigned_total: matching.filter((m) => m.task.generatable === false).length,
-    unassigned_shown: lanes.filter((l) => !l.generatable).length,
+    // what is counted: every unit that has activity and real content (task keys, branches, single sessions, groups of the user's);
+    // sessions without content are not tasks: their number is `empty_total` (the page folds them into one group).
+    // The coverage ring is narrower on purpose: it counts only the units that CAN have a capsule (`coverage`).
+    task_total: matching.length,
+    task_shown: lanes.length,
+    empty_total: empty,
     applied: { from, to },
   };
 }

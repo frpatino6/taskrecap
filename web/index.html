@@ -63,6 +63,8 @@
     </div>
     <section class="vz" id="timeline" hidden aria-labelledby="vz-title"></section>
     <div class="grid" id="grid" role="list" style="margin-top:24px"></div>
+    <section class="emptygroup" id="emptygroup" hidden></section>
+    <section class="hiddenbox" id="hiddenbox" hidden></section>
     <div class="nonewrap" id="nonewrap" hidden>
       <p class="empty" id="none"></p>
       <div class="nonehint" id="none-extra" hidden>
@@ -75,6 +77,12 @@
   <p class="empty" id="loading"></p>
 </div>
 <div class="vz-tip" id="vz-tip" role="tooltip" hidden></div>
+<div class="unitmenu" id="unitmenu" role="menu" hidden></div>
+<div class="udlg" id="unitdlg" hidden>
+  <div class="udbackdrop" id="ud-backdrop"></div>
+  <div class="udpanel" role="dialog" aria-modal="true" aria-labelledby="ud-title" tabindex="-1"></div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="evoverlay" id="evidence" hidden>
   <div class="evbackdrop" id="ev-backdrop"></div>
   <aside class="evpanel" id="ev-panel" role="dialog" aria-modal="true" aria-labelledby="ev-title" tabindex="-1"></aside>
@@ -84,6 +92,7 @@
 <script src="/js/timeline.js"></script>
 <script src="/js/ai.js"></script>
 <script src="/js/files.js"></script>
+<script src="/js/units.js"></script>
 <script src="/js/detail.js"></script>
 <script src="/js/evidence.js"></script>
 <script src="/js/main.js"></script>

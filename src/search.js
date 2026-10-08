@@ -122,7 +122,7 @@ export class CapsuleSearch {
     if (!words.length) return null;
     const docs = this.sections();
     const items = tasks.map((t) => {
-      const head = fold(`${t.key} ${(t.projects || []).join(' ')} ${t.snippet || ''}`);
+      const head = fold(`${t.key} ${t.label && t.label !== t.key ? t.label : ''} ${(t.projects || []).join(' ')} ${t.snippet || ''}`); // a name the user chose is searchable too
       const secs = docs.get(t.key) || [];
       const len = Math.max(1, head.length + secs.reduce((n, s) => n + s.folded.length, 0));
       return { t, head, secs, len };

@@ -6,17 +6,20 @@ function card(t, extra) {
   extra = extra || {};
   const sess = t.sessions + " " + (t.sessions === 1 ? S.session : S.sessions);
   const dates = t.first_ts ? day(t.first_ts) + (day(t.last_ts) !== day(t.first_ts) ? " – " + day(t.last_ts) : "") : "";
-  const chips = t.projects.slice(0, 3).map((p) => `<span class="chip repo">${esc(p)}</span>`).join("") +
+  const title = unitTitle(t);
+  const chips = t.projects.slice(0, 3).map((p) => `<span class="chip repo">${esc(p)}</span>`).join("") + unitChips(t) +
     `<span class="chip">${esc(sess)}</span>` + (dates ? `<span class="chip">${esc(dates)}</span>` : "") +
     (t.generatable ? (t.has_capsule ? `<span class="chip done">${esc(S.chip_capsule)}</span>` : `<span class="chip warn">${esc(S.chip_no_capsule)}</span>`) : "") +
     (t.has_capsule && t.outdated ? `<span class="chip warn" title="${esc(fmt(S.stale_tip, { n: t.new_messages }))}">${esc(fmt(S.stale_chip, { n: t.new_messages }))}</span>` : "");
-  return `<button class="card" role="listitem" data-key="${esc(t.key)}" type="button">
-    <span class="t">${esc(kindLabel(t.kind))}</span>
-    <span class="k">${esc(t.key)}</span>
-    <span class="s">${esc(t.objective || t.snippet)}</span>
+  return `<div class="cardwrap" role="listitem"><button class="card" data-key="${esc(t.key)}" type="button">
+    <span class="t">${esc(kindLabel(t.kind))}${t.renamed && t.kind !== "user" ? " · " + esc(t.key) : ""}</span>
+    <span class="k">${esc(title)}</span>
+    <span class="s">${esc(t.objective || (t.kind === "session" && t.label ? "" : t.snippet))}</span>
     ${extra.reason ? `<span class="reason">${esc(extra.reason)}</span>` : ""}
     ${extra.hit ? hitHtml(extra.hit) : ""}
-    <span class="meta">${chips}</span></button>`;
+    ${relatedLine(t)}
+    <span class="meta">${chips}</span></button>
+    <button class="cardmenu" type="button" data-menu="${esc(t.key)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(fmt(S.menu_label, { name: title }))}">⋯</button></div>`;
 }
 
 let HITS = null; // null = no query; otherwise Map(key -> hit), best match first, from the free, literal search
@@ -45,6 +48,7 @@ function scopeText(c) {
 
 function bindCards(root) {
   root.querySelectorAll(".card").forEach((b) => b.addEventListener("click", () => { location.hash = "#/task/" + encodeURIComponent(b.dataset.key); }));
+  bindUnitButtons(root);
 }
 
 // ---------- home: cards or timeline ----------
@@ -76,21 +80,22 @@ function renderHome() {
   const byKey = new Map(TASKS.map((t) => [t.key, t]));
   let list = HITS ? [...HITS.keys()].map((k) => byKey.get(k)).filter(Boolean) : TASKS; // hits are already best first
   if (VZ.noCapsule) list = list.filter((t) => t.generatable && !t.has_capsule);
+  const real = list.filter((t) => !t.noise), empty = list.filter((t) => t.noise); // sessions without content are folded into one group
   const timeline = VIEW === "timeline" && TASKS.length > 0;
-  $("grid").innerHTML = timeline ? "" : list.map((t) => card(t, HITS ? { hit: HITS.get(t.key) } : null)).join("");
+  $("grid").innerHTML = timeline ? "" : real.map((t) => card(t, HITS ? { hit: HITS.get(t.key) } : null)).join("");
   $("none").textContent = TASKS.length ? S.no_results : S.no_sessions;
-  $("nonewrap").hidden = timeline ? !(HITS && !list.length) : list.length > 0;
-  $("none-extra").hidden = !(HITS && TASKS.length && !list.length); // free search found nothing: suggest AI search (never run it for the user)
+  $("nonewrap").hidden = timeline ? !(HITS && !real.length) : real.length > 0;
+  $("none-extra").hidden = !(HITS && TASKS.length && !real.length); // free search found nothing: suggest AI search (never run it for the user)
   $("search-scope").textContent = HITS ? scopeText(SCOPE) : "";
   $("search-scope").hidden = !HITS;
   bindCards($("grid"));
+  renderEmptyGroup(empty);
   $("viewbar").hidden = !TASKS.length;
   $("view-timeline").setAttribute("aria-pressed", String(timeline));
   $("view-cards").setAttribute("aria-pressed", String(!timeline));
   $("vzfilters").hidden = !timeline;
   $("capfilter").hidden = !VZ.noCapsule;
-  $("timeline").hidden = !timeline || !!(HITS && !list.length);
+  $("timeline").hidden = !timeline || !!(HITS && !real.length);
   renderCoverage();
-  return timeline && !(HITS && !list.length) ? loadTimeline() : undefined;
+  return timeline && !(HITS && !real.length) ? loadTimeline() : undefined;
 }
-

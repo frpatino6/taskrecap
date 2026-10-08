@@ -344,3 +344,51 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
 .ai-off li { margin: 4px 0; }
 .cta[disabled][title] { opacity: .55; cursor: not-allowed; } /* AI off: the title explains why */
 
+
+/* ---- work units: ⋯ menus, dialogs, the folded groups ---- */
+.cardwrap { position: relative; display: flex; min-width: 0; }
+.cardwrap > .card { flex: 1; width: 100%; min-width: 0; }
+.card .t, .card .k { padding-right: 40px; }
+.cardmenu, .lanemenu, .sessmenu { flex: none; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0 0 4px; }
+.cardmenu:hover, .cardmenu:focus-visible, .lanemenu:hover, .lanemenu:focus-visible, .sessmenu:hover, .sessmenu:focus-visible { color: var(--text); border-color: var(--accent); }
+.cardwrap > .cardmenu { position: absolute; top: 12px; right: 12px; z-index: 2; }
+.chip.unsorted { background: var(--warn-soft); color: var(--warn); }
+.chip.grouped { background: var(--active-soft); color: var(--active); }
+.card .related { font-size: 12.5px; color: var(--muted); }
+.relbox { background: var(--surface-2); border-radius: 12px; padding: 10px 14px; margin: 0 0 20px; font-size: 14px; }
+.relbox .hint { color: var(--muted); font-size: 13px; }
+.relbox .row { margin-top: 4px; gap: 4px 14px; }
+.heroact { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.vz-labelwrap { position: sticky; left: 0; z-index: 2; background: var(--surface); display: flex; align-items: center; gap: 4px; min-width: 0; }
+.vz-labelwrap .vz-label { position: static; flex: 1; min-width: 0; }
+.lanemenu { width: 28px; height: 28px; font-size: 17px; border-radius: 8px; }
+.vz-key i.vz-uns { color: var(--warn); background: var(--warn-soft); font-size: 12px; font-weight: 700; margin-left: 6px; padding: 1px 6px; border-radius: 999px; }
+.sessitem { position: relative; }
+.sessitem .sessrow { padding-right: 52px; }
+.sessmenu { position: absolute; top: 8px; right: 8px; }
+.unitmenu { position: fixed; z-index: 70; min-width: 230px; max-width: calc(100vw - 16px); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; }
+.unitmenu button { text-align: left; background: none; border: none; border-radius: 8px; color: var(--text); padding: 9px 12px; font-size: 14.5px; min-height: 36px; cursor: pointer; }
+.unitmenu button:hover, .unitmenu button:focus-visible { background: var(--surface-2); outline: none; }
+.unitmenu button.danger { color: var(--danger); }
+.unitmenu button[disabled] { color: var(--muted); cursor: not-allowed; opacity: .7; }
+.udlg { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.udbackdrop { position: absolute; inset: 0; background: rgba(10, 12, 20, .5); }
+.udpanel { position: relative; width: min(480px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: 22px; }
+.udpanel h2 { margin: 0 0 12px; font-size: 18px; }
+.udpanel .udfield { display: block; font-weight: 600; font-size: 14px; margin: 12px 0 4px; }
+.udpanel input[type="text"], .udpanel select { width: 100%; min-height: 40px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 15px; }
+.udpanel .note { margin: 12px 0 16px; }
+.udpanel .row { margin-top: 8px; }
+.cta.danger { background: var(--danger); color: var(--bg); }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 90; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 10px 16px; display: flex; gap: 14px; align-items: center; max-width: calc(100vw - 24px); font-size: 14.5px; }
+.emptygroup, .hiddenbox { margin: 28px 0 0; }
+.emptygroup details, .hiddenbox details { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; }
+.emptygroup summary, .hiddenbox summary { cursor: pointer; font-weight: 700; }
+.emptygroup .note { margin: 12px 0; }
+.emptylist { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.emptyrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.emptyrow .et { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; font-size: 14.5px; }
+.emptyopen { flex: 1 1 260px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; text-align: left; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 8px 12px; min-height: 38px; cursor: pointer; min-width: 0; }
+.emptyopen .et { flex: 1 1 200px; overflow-wrap: anywhere; font-size: 14px; }
+.emptyopen:hover { border-color: var(--accent); }
+@media (max-width: 560px) { .vz-labelwrap { position: static; } }

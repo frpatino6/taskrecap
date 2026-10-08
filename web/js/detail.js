@@ -45,7 +45,7 @@ const staleText = (st) => fmt(st.new_messages === 1 ? S.stale_badge_one : S.stal
 
 function genPanelHtml(d, hasCap) {
   const can = d.task && d.task.generatable;
-  if (!can) return `<div class="note">${esc(S.unassigned_hint)}</div>`;
+  if (!can) return `<div class="note">${esc(S.unit_capsule_later)} <button class="linkbtn" id="sess-jump" type="button">${esc(S.sessions_jump)}</button></div>`;
   const stale = hasCap ? staleOf(d) : null;
   if (stale) { // the capsule is older than some of its messages: say so, and offer the same regenerate flow (estimate + confirm)
     return `<div class="stale" role="status"><span class="chip warn">${esc(staleText(stale))}</span><button class="linkbtn" id="stale-see" type="button">${esc(S.stale_view_new)}</button>` +
@@ -54,6 +54,14 @@ function genPanelHtml(d, hasCap) {
   const title = hasCap ? "" : `<h2>${esc(S.no_capsule_title)}</h2><p>${esc(S.no_capsule_text)}</p><p class="note">${esc(S.sessions_no_capsule_hint)} <button class="linkbtn" id="sess-jump" type="button">${esc(S.sessions_jump)}</button></p>`;
   if (hasCap) return `<div class="genslim"><span class="chip ai">${esc(S.ai_badge)}</span><button class="cta ai ghost sm" id="gen" type="button">${esc(S.regenerate)}</button><span class="hint">${esc(S.regenerate_hint)}</span></div><div id="genbox" aria-live="polite"></div>`;
   return `<div class="panel gen ai"><p style="margin:0 0 8px"><span class="chip ai">${esc(S.ai_badge)}</span></p>${title}<div class="row"><button class="cta ai" id="gen" type="button">${esc(S.generate)}</button></div><div id="genbox" aria-live="polite"></div></div>`;
+}
+
+/** Related sessions of a session unit: same repo, written within 2 hours of each other. A hint only: nothing is grouped. */
+function relatedDetailHtml(t) {
+  const r = (t && t.related) || [];
+  if (!r.length) return "";
+  return `<div class="relbox"><strong>${esc(S.related)}</strong> <span class="hint">${esc(S.related_tip)}</span><div class="row">` +
+    r.map((x) => `<button class="linkbtn relopen" type="button" data-key="${esc(x.key)}">${esc(x.label)}</button>`).join("") + `</div></div>`;
 }
 
 async function renderDetail(key, { animate = false } = {}) {
@@ -68,14 +76,19 @@ async function renderDetail(key, { animate = false } = {}) {
   const cap = d.capsule, t = d.task || { key, kind: "key", generatable: true, projects: [], snippet: "" };
   const objective = cap ? (cap.capsule || {}).objective : (d.sessions[0] || {}).snippet;
   el.innerHTML = `<button class="back" id="back" type="button">${esc(S.back)}</button>
-    <div class="hero"><div><span class="chip repo">${esc(kindLabel(t.kind))}</span><h1 tabindex="-1">${esc(key)}</h1><p class="t">${esc(objective || "")}</p>
+    <div class="hero"><div><span class="chip repo">${esc(kindLabel(t.kind))}</span>${unitChips(t)}${t.renamed && t.kind !== "user" ? `<span class="chip">${esc(key)}</span>` : ""}<h1 tabindex="-1">${esc(unitTitle(t))}</h1><p class="t">${esc(objective || "")}</p>
       ${cap && cap.generated_at ? `<p class="t" style="font-size:13px">${esc(fmt(S.generated_at, { date: day(cap.generated_at) }))}</p>` : ""}</div>
-      ${cap ? `<button class="cta" id="resume" type="button">${esc(S.resume)}</button>` : ""}</div>
+      <div class="heroact"><button class="cta ghost sm detailmenu" id="unit-menu" type="button" data-menu="${esc(key)}" aria-haspopup="menu" aria-expanded="false">${esc(S.menu_actions)} ▾</button>
+      ${cap ? `<button class="cta" id="resume" type="button">${esc(S.resume)}</button>` : ""}</div></div>
+    ${relatedDetailHtml(t)}
     ${genPanelHtml(d, !!cap)}
     ${cap ? capsuleHtml(cap) : ""}
     ${sessionsHtml(d, key)}`;
   if (animate) { el.classList.remove("fade-in"); void el.offsetWidth; el.classList.add("fade-in"); }
   $("back").addEventListener("click", () => { location.hash = ""; });
+  const um = $("unit-menu");
+  if (um) um.addEventListener("click", () => openUnitMenu(um, key));
+  el.querySelectorAll(".relopen").forEach((b) => b.addEventListener("click", () => { location.hash = "#/task/" + encodeURIComponent(b.dataset.key); }));
   const resume = $("resume");
   if (resume) resume.addEventListener("click", () => copyBriefing(resume, (cap.capsule || {}).briefing || ""));
   const gen = $("gen");
@@ -107,6 +120,7 @@ function sessionItem(s, i) {
     (s.new_messages ? `<span class="chip warn">${esc(fmt(S.sessions_new_chip, { n: s.new_messages }))}</span>` : "");
   return `<div class="sessitem" data-id="${esc(s.id)}" data-mixed="${mixed ? 1 : 0}" data-new="${s.new_messages || 0}">` +
     `<button class="sessrow" type="button" aria-expanded="false" aria-controls="msgs-${i}"><span class="chev" aria-hidden="true">▸</span><code>${esc(s.id.slice(0, 8))}</code><span class="when">${esc(sessionWhen(s))}</span>${chips}</button>` +
+    `<button type="button" class="sessmenu" data-sess="${esc(s.id)}" data-from="${esc(SESS.key)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(fmt(S.menu_label, { name: s.id.slice(0, 8) }))}">⋯</button>` +
     `<div class="msgs" id="msgs-${i}" role="region" aria-label="${esc(fmt(S.sessions_region_label, { session: s.id.slice(0, 8) }))}" hidden></div></div>`;
 }
 
@@ -181,6 +195,8 @@ function setSessionScope(scope) {
 function bindSessions(d) {
   const list = $("sesslist");
   if (list) list.addEventListener("click", (e) => {
+    const sm = e.target.closest(".sessmenu");
+    if (sm) { openSessionMenu(sm); return; }
     const more = e.target.closest(".msgmore");
     if (more) { loadMessages(more.closest(".sessitem"), false); return; }
     const row = e.target.closest(".sessrow");

@@ -9,6 +9,7 @@ import { checkClaude, isSafeModel, publicStatus, shortenPath } from './claude.js
 import { LLMUnavailable, modelNameProblem } from './llm.js';
 import { toRegex } from './sessions.js';
 import { openBrowser, startServer } from './server.js';
+import { resolveKeyConfig } from './userconfig.js';
 
 const HELP = `${config.APP_TITLE} ${config.VERSION}
 One living record per task, built from your Claude Code sessions.
@@ -24,6 +25,7 @@ Options:
   --port <n>            port for the dashboard (default 8765; the next free one is used if busy)
   --projects-dir <dir>  where Claude Code stores sessions (default ~/.claude/projects)
   --key-regex <regex>   regex that matches a task key (default: Jira-style, e.g. ABC-123)
+  --ignore-branches <a,b>  branch names that mean "no task" (main, master, develop... always do)
   --claude-path <path>  full path to the claude executable (also TASKRECAP_CLAUDE) if it is not found automatically
   --no-open             do not open the browser
   --lang <code>         UI language (a web/strings.<code>.json file; default en)
@@ -35,6 +37,10 @@ Options:
   -v, --version         print the version
   -h, --help            print this help
 
+Settings file (optional): ~/.taskrecap/config.json
+  { "keyPatterns": ["\\\\b[A-Z][A-Z0-9]{1,9}-\\\\d{1,6}\\\\b", "#\\\\d{2,6}"], "ignoreBranches": ["staging"] }
+Sessions without a task key are listed one by one under "Unsorted"; you can rename, merge, move and hide them in the page.
+
 Normal mode is free and local. Only the actions marked "AI" (generate a capsule, search by meaning)
 call Claude, and they always show an estimate first.`;
 
@@ -44,6 +50,7 @@ const OPTIONS = {
   'projects-dir': { type: 'string' },
   'claude-path': { type: 'string' },
   'key-regex': { type: 'string' },
+  'ignore-branches': { type: 'string' },
   'no-open': { type: 'boolean' },
   'no-browser': { type: 'boolean' },
   lang: { type: 'string', default: 'en' },
@@ -83,7 +90,7 @@ export function parseCli(argv) {
   } catch {
     throw new UserError(`Invalid --key-regex: ${regex}`);
   }
-  return { cmd, key: rest[0], opts: { ...o, votes, port, noOpen: Boolean(o['no-open'] || o['no-browser']), regex } };
+  return { cmd, key: rest[0], opts: { ...o, votes, port, noOpen: Boolean(o['no-open'] || o['no-browser']), regex, regexFlag: o['key-regex'] || null } };
 }
 
 /**
@@ -99,21 +106,28 @@ export function seedDemoCache(sample, cache) {
   }
 }
 
+/** The key patterns and ignored branches in force (flags > env > ~/.taskrecap/config.json > default). Throws a UserError on a bad setting. */
+export function keyConfigFor(opts, home = config.homeDir()) {
+  const flag = opts.regexFlag !== undefined ? opts.regexFlag : (opts.regex && opts.regex !== config.DEFAULT_KEY_REGEX ? opts.regex : null);
+  return resolveKeyConfig({ flag, ignore: opts['ignore-branches'] }, { home, skipFile: Boolean(opts.skipUserConfig) });
+}
+
 export function buildApp(opts) {
   if (!process.env.TASKRECAP_HOME) config.migrateLegacyHome(); // an explicit TASKRECAP_HOME means 'use exactly this folder'
   const home = config.homeDir();
   const usageFile = path.join(home, 'usage.json');
+  const kc = keyConfigFor(opts, home);
   if (opts.demo) {
     const cache = path.join(home, 'demo-cache');
     const sample = path.join(DEMO_DIR, 'capsules');
     seedDemoCache(sample, cache);
     return new App({
-      projectsDir: path.join(DEMO_DIR, 'sessions'), cacheDir: cache, keyRegex: opts.regex, lang: opts.lang,
+      projectsDir: path.join(DEMO_DIR, 'sessions'), cacheDir: cache, keyRegex: kc.regex, keyConfig: kc, lang: opts.lang,
       demo: true, model: opts.model, votes: opts.votes, usageFile,
     });
   }
   return new App({
-    projectsDir: config.projectsDir(opts['projects-dir']), cacheDir: path.join(home, 'capsules'), keyRegex: opts.regex,
+    projectsDir: config.projectsDir(opts['projects-dir']), cacheDir: path.join(home, 'capsules'), keyRegex: kc.regex, keyConfig: kc,
     lang: opts.lang, model: opts.model, votes: opts.votes, usageFile,
   });
 }
@@ -149,8 +163,9 @@ function cmdList(opts, out) {
     return 0;
   }
   for (const t of tasks) {
-    const flag = t.has_capsule ? 'capsule' : '-';
-    out.log(`${t.key.slice(0, 28).padEnd(28)} ${t.kind.padEnd(10)} ${String(t.sessions).padStart(3)} sessions  ${(t.last_ts || '').slice(0, 10)}  ${flag}`);
+    const flag = t.has_capsule ? 'capsule' : t.noise ? 'no content' : '-';
+    const name = t.source === 'key' || t.source === 'branch' ? '' : `  ${t.label || ''}`.trimEnd();
+    out.log(`${t.key.slice(0, 28).padEnd(28)} ${t.kind.padEnd(10)} ${String(t.sessions).padStart(3)} sessions  ${(t.last_ts || '').slice(0, 10)}  ${flag}${name ? `  ${name.trim().slice(0, 60)}` : ''}`);
   }
   return 0;
 }
@@ -168,7 +183,18 @@ export async function cmdDoctor(opts, out, { claude = checkClaude, nodeVersion =
   else bad(`Node ${nodeVersion} is too old (taskrecap needs Node 18 or newer)`, 'Install a current Node from https://nodejs.org and run this again.');
   ok(`System: ${platform} ${process.arch}`);
 
-  const app = buildApp(opts);
+  let doctorOpts = opts;
+  try {
+    const kc = keyConfigFor(opts);
+    ok(`Task keys: ${kc.patterns.length} pattern${kc.patterns.length === 1 ? '' : 's'} (from ${kc.source === 'file' ? shortenPath(kc.file) : kc.source === 'default' ? 'the default: Jira-style, e.g. ABC-123' : kc.source === 'env' ? 'an environment variable' : 'a flag'})` +
+      (kc.ignoreBranches.length ? `, ignored branches: ${kc.ignoreBranches.join(', ')}` : ''));
+  } catch (e) {
+    if (!(e instanceof UserError)) throw e;
+    bad(`Settings problem: ${e.message}`, 'Fix or delete that setting (the default key pattern is used meanwhile), then run taskrecap doctor again.');
+    doctorOpts = { ...opts, skipUserConfig: true };
+  }
+
+  const app = buildApp(doctorOpts);
   const dir = app.projectsDir;
   if (!fs.existsSync(dir)) {
     bad(`Sessions folder not found: ${shortenPath(dir)}`, [
