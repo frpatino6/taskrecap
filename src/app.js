@@ -18,6 +18,7 @@ import { CapsuleStore, SessionIndex, capsuleStaleness, isGeneratable, planTask }
 import { pageMessages } from './messages.js';
 import { UsageTracker, sumMetas } from './usage.js';
 import { MAX_LABEL, Overrides, isUserKey } from './units.js';
+import { OrganizeStore, Organizer } from './organize.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const WEB_DIR = path.join(ROOT, 'web');
@@ -93,6 +94,11 @@ export class App {
     this.usage = new UsageTracker(usageFile);
     this.rawAsk = ask;
     this.busy = new Set();
+    // "Organize with AI": proposals for the sessions without a task key (nothing is applied until the user accepts one)
+    this.organizer = new Organizer({
+      index: this.index, overrides: this.overrides, store: new OrganizeStore(path.join(cacheDir, '.index', 'organize.json')),
+      ask: (prompt, opts) => this.ask(prompt, opts), model: () => this.model, language: () => this.strings.llm_language || 'English', keyRegex: this.keyRegex,
+    });
   }
 
   /**
@@ -223,6 +229,7 @@ export class App {
     const since = cap ? Date.parse(cap.generated_at) : NaN;
     const page = pageMessages(file, {
       key, markable: Boolean(key) && this.isMarkable(key), main: !summary || !key || (view ? view.key === key : summary.key === key), since, scope, offset, limit, keyRegex: this.keyRegex,
+      range: view && view.range ? view.range : null,
     });
     const id = path.basename(file).replace(/\.jsonl$/, '');
     return {
@@ -383,6 +390,35 @@ export class App {
       id: s.id, id8: s.id.slice(0, 8), project: s.project, title: s.unit_title || s.snippet || '', first_ts: s.first_ts, prompts: s.n_prompts,
     }));
     return { units, sessions };
+  }
+
+  // --- organizing the sessions without a task key (free to read; running it is an AI action the user confirmed) ---
+  /** Pending proposals and how many sessions could be organized. Free. */
+  organizeProposals() {
+    return this.organizer.view();
+  }
+
+  /** What a run would cost (nothing when the same sessions were already analysed). */
+  organizeEstimate(opts = {}) {
+    return this.organizer.estimate(opts);
+  }
+
+  organize(opts = {}, run = {}) {
+    return this.organizer.run(opts, run);
+  }
+
+  acceptProposal(id, edits = {}) {
+    const batch = this.organizer.accept(id, edits);
+    return this.changeResult(batch);
+  }
+
+  acceptProposals(confidence = 'high') {
+    const { batch, accepted } = this.organizer.acceptAll({ confidence });
+    return { ...this.changeResult(batch), accepted };
+  }
+
+  rejectProposal(id) {
+    return this.organizer.reject(id);
   }
 
   // --- AI actions (spend tokens; callers must have confirmed with the user first) ---

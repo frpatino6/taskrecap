@@ -4,6 +4,7 @@
 export const STAGES = {
   generate: ['scan', 'redact', 'votes', 'merge', 'evidence', 'write', 'validate', 'save'],
   search: ['catalog', 'ask', 'rank'],
+  organize: ['org_scan', 'org_ask', 'org_validate', 'org_save'],
 };
 
 const noop = () => {};

@@ -137,6 +137,16 @@ export function timelineOptions(q) {
   return opts;
 }
 
+/** `?sessions=a,b&titles=1&force=1` (GET) or the JSON body (POST) -> options of Organizer.run/estimate. Garbage is ignored. */
+export function organizeOptions(src) {
+  const get = (k) => (src instanceof URLSearchParams ? src.get(k) : src[k]);
+  const raw = get('sessions');
+  const list = Array.isArray(raw) ? raw : typeof raw === 'string' && raw ? raw.split(',') : [];
+  const sessions = list.map((x) => String(x).trim()).filter((x) => /^[\w-]{4,80}$/.test(x)).slice(0, 200);
+  const flag = (k) => get(k) === true || get(k) === '1' || get(k) === 'true';
+  return { sessions: sessions.length ? sessions : null, titlesOnly: flag('titles') || flag('titlesOnly'), force: flag('force') };
+}
+
 export function makeHandler(app) {
   return async (req, res) => {
     try {
@@ -156,7 +166,7 @@ export function makeHandler(app) {
 export const WEB_ASSETS = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.css': ['app.css', 'text/css; charset=utf-8'],
-  ...Object.fromEntries(['core', 'home', 'timeline', 'ai', 'files', 'units', 'detail', 'evidence', 'main'].map((n) => [`/js/${n}.js`, [`js/${n}.js`, 'text/javascript; charset=utf-8']])),
+  ...Object.fromEntries(['core', 'home', 'timeline', 'ai', 'files', 'units', 'organize', 'detail', 'evidence', 'main'].map((n) => [`/js/${n}.js`, [`js/${n}.js`, 'text/javascript; charset=utf-8']])),
 };
 
 async function handleGet(app, url, route, res) {
@@ -189,6 +199,8 @@ async function handleGet(app, url, route, res) {
     const q = url.searchParams;
     return send(res, 200, app.evidence({ session: q.get('session'), turn: q.get('turn'), context: q.has('context') ? q.get('context') : undefined, key: q.get('key') || '' }));
   }
+  if (route === '/api/organize/proposals') return send(res, 200, app.organizeProposals());
+  if (route === '/api/organize/estimate') return send(res, 200, app.organizeEstimate(organizeOptions(url.searchParams)));
   if (route === '/api/estimate') return send(res, 200, app.estimate(url.searchParams.get('key') || ''));
   if (route === '/api/ai-search/estimate') return send(res, 200, app.estimateSearch(url.searchParams.get('q') || ''));
   return sendError(res, 404, 'Not found');
@@ -214,6 +226,23 @@ async function handlePost(app, req, route, res) {
     }
     if (action === 'undo') return send(res, 200, app.undoChange(body.batch || null));
     return sendError(res, 404, 'Not found');
+  }
+  if (route.startsWith('/api/organize/')) { // accept / reject proposals: JSON only, local only, every acceptance can be undone
+    if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
+    const body = await readJson(req);
+    const action = route.slice('/api/organize/'.length);
+    if (action === 'accept') return send(res, 200, app.acceptProposal(body.id, { title: body.title }));
+    if (action === 'accept-all') return send(res, 200, app.acceptProposals(body.confidence || 'high'));
+    if (action === 'reject') return send(res, 200, app.rejectProposal(body.id));
+    return sendError(res, 404, 'Not found');
+  }
+  if (route === '/api/organize') { // the AI action: needs the explicit confirmation like every other one that spends tokens
+    if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
+    const body = await readJson(req);
+    if (body.confirm !== true) return sendError(res, 400, 'Confirmation required: send {"confirm": true}');
+    const opts = organizeOptions(body);
+    if ((req.headers.accept || '').includes('application/x-ndjson')) return streamAction(res, (run) => app.organize(opts, run));
+    return send(res, 200, await app.organize(opts));
   }
   const isGenerate = route === '/api/generate';
   const isAiSearch = route === '/api/ai-search';

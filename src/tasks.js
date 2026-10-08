@@ -3,11 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_KEY_REGEX } from './config.js';
 import {
-  GENERIC_BRANCHES, KEY_MIN_MENTIONS, detectKey, findKeys, parseSession, projectName, promptDays, promptKeyCounts, redact,
+  GENERIC_BRANCHES, KEY_MIN_MENTIONS, detectKey, findKeys, localDay, parseSession, projectName, promptDays, promptKeyCounts, redact,
 } from './sessions.js';
+import { messageList } from './messages.js';
 import * as capsule from './capsule.js';
 import { isNoise } from './segment.js';
-import { buildUnits, cutTitle, emptyState, hasContent, isGeneratableKey, relatedUnits, sessionTitle, stripTags } from './units.js';
+import { buildUnits, cutTitle, emptyState, hasContent, isGeneratableKey, meaningfulText, relatedUnits, sessionTitle, stripTags } from './units.js';
 
 /**
  * When the user's own messages were written, in epoch ms (automatic ones such as "[Request interrupted" are left out):
@@ -88,6 +89,28 @@ export function taskActivity(key, sessions) {
   return [...cells.values()].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.project < b.project ? -1 : a.project > b.project ? 1 : 0));
 }
 
+/**
+ * The messages first..last of a session as a unit of their own: the same summary fields as summarizeSession, computed from
+ * those messages only. null when they hold no real message (nothing worth listing). Free: reads the cached message list.
+ */
+export function rangeSummary(s, first, last, keyRegex) {
+  const rows = messageList(s.path, keyRegex).filter((m) => m.turn >= first && m.turn <= last && !m.noise);
+  if (!rows.length) return null;
+  const meaningful = rows.map((m) => meaningfulText(m.text)).find(Boolean) || '';
+  if (!meaningful) return null;
+  const days = {};
+  for (const m of rows) {
+    const d = localDay(m.ts);
+    if (d) days[d] = (days[d] || 0) + 1;
+  }
+  const stamps = rows.map((m) => m.ts).filter(Boolean).sort();
+  return {
+    ...s, key: s.key, first_ts: stamps[0] || s.first_ts, last_ts: stamps[stamps.length - 1] || s.last_ts, n_prompts: rows.length,
+    unit_title: cutTitle(redact(meaningful)), has_content: true, snippet: redact(stripTags(rows[0].text)).slice(0, 140),
+    mentions: {}, days, mention_days: {}, prompt_ts: rows.map((m) => m.ms).filter((ms) => ms != null), mention_ts: {},
+  };
+}
+
 /** All sessions under `projectsDir`, parsed once per file version (path + mtime + size). */
 export class SessionIndex {
   /** `overrides`: the user's corrections (see units.js); `genericBranches`: extra branch names that mean "no task". */
@@ -142,7 +165,11 @@ export class SessionIndex {
 
   /** Units and the sessions in each, after the user's corrections: {units: Map(key -> unit), hiddenSessions}. See buildUnits. */
   unitMap() {
-    return buildUnits(this.sessions(), this.overrides ? this.overrides.state() : emptyState(), { keyRegex: this.keyRegex });
+    return buildUnits(this.sessions(), this.overrides ? this.overrides.state() : emptyState(), {
+      keyRegex: this.keyRegex,
+      rangeView: (s, a, b) => rangeSummary(s, a, b, this.keyRegex),
+      turnCount: (s) => messageList(s.path, this.keyRegex).length,
+    });
   }
 
   /** Changes whenever the user's corrections change (persisted cache signatures include it). */
@@ -177,10 +204,11 @@ export class SessionIndex {
         key: u.key, id: u.id, kind: u.source, source: u.source, sessions: ss.length, projects,
         label: u.label || (u.source === 'key' || u.source === 'branch' ? u.key : u.source === 'user' ? u.defaultLabel || merged : title),
         renamed: u.renamed, hidden: u.hidden, noise: u.noise, unsorted: u.source === 'session', mergedFrom: u.mergedFrom, can_split: u.source === 'user',
+        ai: u.ai, range: u.range,
         first_ts: firsts.length ? firsts.reduce((a, b) => (a < b ? a : b)) : null,
         last_ts: lasts.length ? lasts.reduce((a, b) => (a > b ? a : b)) : null,
         snippet: title || ss[0].snippet, prompts: ss.reduce((a, v) => a + v.n_prompts, 0), activity,
-        session_ids: ss.map((v) => v.id),
+        session_ids: u.range ? [] : ss.map((v) => v.id), // a message range cannot be "moved" as a session: the rest of the session is somewhere else
       });
     }
     out.sort((a, b) => ((b.last_ts || '') < (a.last_ts || '') ? -1 : (b.last_ts || '') > (a.last_ts || '') ? 1 : 0));

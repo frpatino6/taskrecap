@@ -45,18 +45,19 @@ const toInt = (v, fallback, min, max) => {
 
 /**
  * One page of the user's messages of a session.
- * opts: {key, markable (the key can be found in text), main (the key is the session's own task), since (epoch ms of the
+ * opts: {range: [first, last] turns to list (default all), key, markable (the key can be found in text), main (the key is the session's own task), since (epoch ms of the
  * capsule, or NaN), scope: all | mine (cite the key) | new (written after the capsule), offset, limit, keyRegex}
  * `mine` is only meaningful when `markable`; `new` counts the messages after `since` (for a session the task merely shares,
  * only those citing the key, the same rule the outdated badge uses).
  * -> {total, hidden_noise, offset, limit, scope, messages: [{turn, ts, text, cut, mine, new}]}
  */
-export function pageMessages(file, { key = '', markable = false, main = true, since = NaN, scope = 'all', offset = 0, limit = PAGE_DEFAULT, keyRegex = DEFAULT_KEY_REGEX } = {}) {
+export function pageMessages(file, { key = '', markable = false, main = true, since = NaN, scope = 'all', offset = 0, limit = PAGE_DEFAULT, keyRegex = DEFAULT_KEY_REGEX, range = null } = {}) {
   const list = messageList(file, keyRegex);
   const sc = SCOPES.includes(scope) ? scope : 'all';
   const rows = [];
   let hiddenNoise = 0;
   for (const m of list) {
+    if (range && (m.turn < range[0] || m.turn > range[1])) continue; // a unit that is only part of a session lists only its messages
     if (m.noise) { hiddenNoise += 1; continue; }
     const mine = markable && m.keys.includes(key);
     const fresh = Number.isFinite(since) && m.ms != null && m.ms > since && (main || mine);

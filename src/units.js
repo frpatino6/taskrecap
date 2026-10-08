@@ -1,8 +1,10 @@
 // Work units: what the home page lists. A unit is a task key, a branch, ONE session that has neither (a "session unit"),
 // or a group the user made by hand ("user unit"). Everything here is free: no AI, no tokens.
 //   key:<KEY>  branch:<name>  session:<id8>  user:<uuid>
-// The user's corrections (rename, merge, move, split, hide) are stored as an append-only list of operations; the current
+// The user's corrections (rename, merge, move, split, hide, cut) are stored as an append-only list of operations; the current
 // state is always the fold of the operations that were not undone, so an undo is just "ignore that operation".
+// An operation may carry `source: 'ai'` (accepted from an AI proposal): the units it makes are labelled "AI-organized".
+//   cut = one session divided in message ranges; each range is its own unit: session:<id8>#<first>-<last>
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -77,7 +79,22 @@ export function hasContent(s) {
 // ---------- the user's corrections ----------
 export const emptyState = () => ({
   labels: new Map(), merges: new Map(), moves: new Map(), hiddenUnits: new Set(), hiddenSessions: new Set(),
+  cuts: new Map(), aiLabels: new Set(), aiMerges: new Set(),
 });
+
+/** Parts of a cut that can be trusted: integer ranges, ascending, no overlap. null = the whole operation is ignored. */
+export function cleanParts(parts) {
+  if (!Array.isArray(parts) || parts.length < 2 || parts.length > 40) return null;
+  const out = [];
+  for (const p of parts) {
+    const start = Number.isInteger(p && p.start) ? p.start : NaN, end = Number.isInteger(p && p.end) ? p.end : NaN;
+    if (!(start >= 0 && end >= start)) return null;
+    out.push({ start, end, label: String((p && p.label) || '').replace(/\s+/g, ' ').trim().slice(0, MAX_LABEL) });
+  }
+  out.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < out.length; i++) if (out[i].start <= out[i - 1].end) return null; // overlapping ranges: refuse the cut
+  return out;
+}
 
 const isStr = (v) => typeof v === 'string' && v.length > 0 && v.length < 400;
 
@@ -90,18 +107,24 @@ export function foldOps(ops) {
       if (op.type === 'rename' && isStr(op.unit)) {
         const label = String(op.label || '').trim().slice(0, MAX_LABEL);
         if (label) st.labels.set(op.unit, label); else st.labels.delete(op.unit);
+        if (label && op.source === 'ai') st.aiLabels.add(op.unit); else st.aiLabels.delete(op.unit);
       } else if (op.type === 'merge' && isStr(op.unit) && Array.isArray(op.members)) {
         const m = st.merges.get(op.unit) || { members: [], label: null };
         for (const k of op.members) if (isStr(k) && k !== op.unit && !m.members.includes(k)) m.members.push(k);
         if (op.label) m.label = String(op.label).trim().slice(0, MAX_LABEL);
         st.merges.set(op.unit, m);
+        if (op.source === 'ai') st.aiMerges.add(op.unit);
       } else if (op.type === 'split' && isStr(op.unit)) {
         st.merges.delete(op.unit);
+        st.aiMerges.delete(op.unit);
         st.labels.delete(op.unit);
         st.hiddenUnits.delete(op.unit);
         for (const [sid, to] of [...st.moves]) if (to === op.unit) st.moves.delete(sid);
       } else if (op.type === 'move' && isStr(op.session) && isStr(op.to)) {
         st.moves.set(op.session, op.to);
+      } else if (op.type === 'cut' && isStr(op.session)) {
+        const parts = cleanParts(op.parts);
+        if (parts) st.cuts.set(op.session, parts);
       } else if (op.type === 'hide' && (isStr(op.unit) || isStr(op.session))) {
         const set = isStr(op.unit) ? st.hiddenUnits : st.hiddenSessions;
         const id = isStr(op.unit) ? op.unit : op.session;
@@ -163,7 +186,7 @@ export class Overrides {
 
   /** Same text on every run while the active corrections do not change: usable inside persisted cache signatures. */
   signature() {
-    const active = this.ops().filter((o) => !o.undone).map((o) => [o.type, o.unit, o.session, o.to, o.label, o.hidden, o.members]);
+    const active = this.ops().filter((o) => !o.undone).map((o) => [o.type, o.unit, o.session, o.to, o.label, o.hidden, o.members, o.parts, o.source]);
     return crypto.createHash('sha1').update(JSON.stringify(active)).digest('hex').slice(0, 12);
   }
 
@@ -237,6 +260,7 @@ export function shortIds(sessions) {
 }
 
 export const isSessionKey = (key) => /^session:/.test(String(key));
+export const isPartKey = (key) => /^session:[^#]+#\d+-\d+$/.test(String(key)); // one message range of a session the user (or the AI) cut
 export const isUserKey = (key) => /^user:/.test(String(key));
 /** Only task keys and branches can have a capsule for now; session and user units are read through their Sessions list. */
 export const isGeneratableKey = (key) => !isSessionKey(key) && !isUserKey(key) && key !== UNASSIGNED;
@@ -250,7 +274,14 @@ export const unitId = (key, source) => (source === 'key' ? `key:${key}` : source
  * A session belongs to ONE session unit; to the unit of its key and of every key its messages cite often enough; or to the
  * unit the user moved it to. A "view" of a session is the summary with `key` set to the unit it is read as.
  */
-export function buildUnits(sessions, state, { keyRegex }) {
+const defaultRangeView = (s, start, end) => ({ ...s, range: [start, end], has_content: true });
+const defaultTurnCount = (s) => s.n_prompts || 0;
+
+/**
+ * `rangeView(s, start, end)` -> the summary of the messages start..end of a session (or null when there is no real message
+ * in them); `turnCount(s)` -> how many messages the session has. Both are injected because they need the session file.
+ */
+export function buildUnits(sessions, state, { keyRegex, rangeView = defaultRangeView, turnCount = defaultTurnCount }) {
   const full = new RegExp(`^(?:${keyRegex})$`);
   const ids = shortIds(sessions);
   const base = new Map(); // key -> {source, entries: Map(sessionId -> {s, mode})}
@@ -259,8 +290,34 @@ export function buildUnits(sessions, state, { keyRegex }) {
     if (!map.has(key)) map.set(key, { source, entries: new Map() });
     map.get(key).entries.set(s.id, { s, mode });
   };
+  const cutPieces = (s, parts) => { // the ranges the user accepted, plus whatever lies between them as plain pieces
+    const total = turnCount(s);
+    const pieces = [];
+    let at = 0;
+    for (const p of parts) {
+      if (p.start > at) pieces.push({ start: at, end: p.start - 1, label: '' });
+      pieces.push({ start: p.start, end: Math.min(p.end, total - 1), label: p.label });
+      at = p.end + 1;
+    }
+    if (at < total) pieces.push({ start: at, end: total - 1, label: '' });
+    return pieces.filter((pc) => pc.end >= pc.start);
+  };
   const autoPlace = (s) => {
-    if (s.key === UNASSIGNED) { put(base, `session:${ids.get(s.id)}`, 'session', s, 'main'); return; }
+    if (s.key === UNASSIGNED) {
+      const parts = state.cuts.get(s.id);
+      let made = 0;
+      if (parts) {
+        for (const pc of cutPieces(s, parts)) {
+          const view = rangeView(s, pc.start, pc.end);
+          if (!view) continue; // no real message in this range: nothing to list
+          const key = `session:${ids.get(s.id)}#${pc.start}-${pc.end}`;
+          put(base, key, 'session', { ...view, key, range: [pc.start, pc.end], unit_title: pc.label || view.unit_title, ai_part: Boolean(pc.label) }, 'main');
+          made += 1;
+        }
+      }
+      if (!made) put(base, `session:${ids.get(s.id)}`, 'session', s, 'main');
+      return;
+    }
     const cited = Object.entries(s.mentions || {}).filter(([, n]) => n >= KEY_MIN_MENTIONS).map(([k]) => k);
     for (const k of new Set([s.key, ...cited])) put(base, k, full.test(k) ? 'key' : 'branch', s, k === s.key ? 'main' : 'mention');
   };
@@ -283,6 +340,11 @@ export function buildUnits(sessions, state, { keyRegex }) {
 
   const users = new Map();
   const mergedAway = new Set();
+  // Joining two message ranges of the SAME session gives the session back as a whole (a unit holds one view per session).
+  const join = (entries, sid, s) => {
+    const had = entries.get(sid);
+    entries.set(sid, { s: had && (had.s.range || s.range) ? (byId.get(sid) || s) : s, mode: 'forced' });
+  };
   for (const [ukey, m] of state.merges) {
     const entries = new Map();
     const from = [];
@@ -291,11 +353,11 @@ export function buildUnits(sessions, state, { keyRegex }) {
       if (!b) continue;
       mergedAway.add(mk);
       from.push(mk);
-      for (const [sid, e] of b.entries) entries.set(sid, { s: e.s, mode: 'forced' });
+      for (const [sid, e] of b.entries) join(entries, sid, e.s);
     }
     users.set(ukey, { source: 'user', entries, from, label: m.label });
   }
-  for (const [s, to] of pendingToUser) users.get(to).entries.set(s.id, { s, mode: 'forced' });
+  for (const [s, to] of pendingToUser) join(users.get(to).entries, s.id, s);
 
   const units = new Map();
   const add = (key, source, entries, extra) => {
@@ -304,7 +366,7 @@ export function buildUnits(sessions, state, { keyRegex }) {
     const label = state.labels.get(key) || null;
     units.set(key, {
       key, id: unitId(key, source), source, hidden: state.hiddenUnits.has(key), members, renamed: Boolean(label),
-      label, mergedFrom: [], noise: false, ...extra,
+      label, mergedFrom: [], noise: false, ai: false, range: null, ...extra,
     });
   };
   for (const [key, b] of base) {
@@ -314,10 +376,12 @@ export function buildUnits(sessions, state, { keyRegex }) {
       const s = [...b.entries.values()][0].s;
       extra.sessionTitle = s.unit_title || null;
       extra.noise = !s.has_content;
+      extra.range = s.range || null;
+      extra.ai = Boolean(s.ai_part) || state.aiLabels.has(key);
     }
     add(key, b.source, b.entries, extra);
   }
-  for (const [key, u] of users) add(key, 'user', u.entries, { mergedFrom: u.from, defaultLabel: u.label || null });
+  for (const [key, u] of users) add(key, 'user', u.entries, { mergedFrom: u.from, defaultLabel: u.label || null, ai: state.aiMerges.has(key) });
   return { units, hiddenSessions };
 }
 
