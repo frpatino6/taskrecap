@@ -70,6 +70,25 @@ const SESSIONS = [
     [t('09-22', '14:08'), 'SHOP-107: the order email should mention the gift wrap.', 'Added a "Gift wrap" row to the order confirmation email template.', [['Edit', { file_path: '/home/demo/acme-shop/src/emails/orderConfirmation.js', old_string: 'x', new_string: 'y' }]]],
     [t('09-22', '14:35'), 'Add tests and run them.', 'Added tests for the line item and the email row; all pass.', [['Edit', { file_path: '/home/demo/acme-shop/src/cart/total.test.js', old_string: 'x', new_string: 'y' }], ['Bash', { command: 'npm test' }]]],
   ] },
+  // one long session with NO task key that switches between two jobs: the demo of "Organize with AI" cutting a session in two
+  { dir: 'acme-docs', id: 'fa1a1a1a-1401-4401-8401-000000001401', repo: 'acme-docs', branch: 'main', prompts: [
+    [t('09-27', '09:02'), 'The getting started page has anchors that do not scroll to the right heading. Find the broken ones.', 'Four anchors point to ids that no longer exist after the headings were renamed.'],
+    [t('09-27', '09:10'), 'Fix the four anchors in the getting started page and keep the old ones working with redirects.', 'Updated the four anchors and added small redirect stubs for the old ids.', [['Edit', { file_path: '/home/demo/acme-docs/docs/getting-started.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '09:18'), 'Check the same anchor problem in the installation guide as well.', 'The installation guide has two broken anchors, fixed the same way.', [['Edit', { file_path: '/home/demo/acme-docs/docs/installation.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '09:26'), 'Add a unit test that fails when a page links to a heading that does not exist.', 'Added anchors.test.js that parses every page and checks each internal anchor.', [['Edit', { file_path: '/home/demo/acme-docs/tests/anchors.test.js', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '09:35'), 'Run the new anchor test and the whole docs build.', 'The anchor test passes and the docs build finishes without warnings.', [['Bash', { command: 'npm run build && npm test' }]]],
+    [t('09-27', '09:44'), 'The sidebar link to the getting started page still jumps to the top, check the anchor there.', 'The sidebar used a stale id; changed it to the new heading id.', [['Edit', { file_path: '/home/demo/acme-docs/sidebars.js', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '09:52'), 'Also make the anchor check part of the pull request workflow.', 'Added the anchor test to the docs workflow so every pull request runs it.', [['Edit', { file_path: '/home/demo/acme-docs/.github/workflows/docs.yml', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '10:01'), 'Good, that is the anchors done. Commit it locally without pushing.', 'Committed the anchor fixes locally on main. Not pushed.', [['Bash', { command: "git commit -am 'Fix broken anchors in the docs'" }]]],
+    [t('09-27', '14:02'), 'New topic: we ship version 2.4 on Friday, start the release notes for it.', 'Started docs/releases/2.4.md with a headline and the list of merged changes.', [['Edit', { file_path: '/home/demo/acme-docs/docs/releases/2.4.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '14:12'), 'Group the 2.4 changes into features, fixes and breaking changes.', 'Grouped the changes into three sections for the release notes.', [['Edit', { file_path: '/home/demo/acme-docs/docs/releases/2.4.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '14:21'), 'The rate limit change needs a highlighted breaking change note in the release notes.', 'Added a breaking change box that explains the new 429 JSON body.', [['Edit', { file_path: '/home/demo/acme-docs/docs/releases/2.4.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '14:30'), 'Write the upgrade steps for people moving from version 2.3 to 2.4.', 'Added a short upgrade checklist for the release notes.', [['Edit', { file_path: '/home/demo/acme-docs/docs/releases/2.4.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '14:41'), 'Add the thank you section for outside contributors to the release notes.', 'Added a contributors section generated from the merged pull requests.', [['Edit', { file_path: '/home/demo/acme-docs/docs/releases/2.4.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '14:52'), 'Link the 2.4 release notes from the changelog index page.', 'Added the 2.4 entry at the top of the changelog index.', [['Edit', { file_path: '/home/demo/acme-docs/docs/releases/index.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '15:03'), 'Proofread the release notes for tone and typos before the Friday release.', 'Fixed six typos and shortened two long sentences in the notes.', [['Edit', { file_path: '/home/demo/acme-docs/docs/releases/2.4.md', old_string: 'x', new_string: 'y' }]]],
+    [t('09-27', '15:12'), 'Build the docs and check the release notes page renders correctly.', 'The build passes and the release notes page renders with all sections.', [['Bash', { command: 'npm run build' }]]],
+  ] },
 ];
 
 function lines(session) {

@@ -1,0 +1,142 @@
+{
+ "version": 1,
+ "runs": {
+  "75fb37b7cf0550e8": {
+   "at": "2026-10-09T00:15:09.523Z",
+   "sessions": 6,
+   "proposals": 5,
+   "titles_only": false,
+   "model": "sonnet",
+   "calls": 1,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cost_usd": 0
+  }
+ },
+ "proposals": {
+  "62d6ed9c870d": {
+   "id": "62d6ed9c870d",
+   "type": "group",
+   "title": "Pagination of the products listing",
+   "sessions": [
+    "f3a3b3c3-1302-4302-8302-000000001302",
+    "f4a4b4c4-1303-4303-8303-000000001303"
+   ],
+   "shorts": [
+    "f3a3b3c3",
+    "f4a4b4c4"
+   ],
+   "reason": "The second session writes the tests for the pagination the first one added to the products endpoint.",
+   "confidence": "high",
+   "evidence": [
+    {
+     "session": "f3a3b3c3",
+     "turn": 0
+    },
+    {
+     "session": "f4a4b4c4",
+     "turn": 0
+    }
+   ],
+   "status": "pending",
+   "created_at": "2026-10-09T00:15:09.521Z"
+  },
+  "9b5b57ce6c86": {
+   "id": "9b5b57ce6c86",
+   "type": "split",
+   "title": "",
+   "sessions": [
+    "fa1a1a1a-1401-4401-8401-000000001401"
+   ],
+   "shorts": [
+    "fa1a1a1a"
+   ],
+   "reason": "The morning is about broken documentation anchors; after the break the same session starts the 2.4 release notes.",
+   "confidence": "medium",
+   "parts": [
+    {
+     "start": 0,
+     "end": 7,
+     "title": "Fix the broken anchors in the docs",
+     "evidence": [
+      {
+       "session": "fa1a1a1a",
+       "turn": 1
+      }
+     ]
+    },
+    {
+     "start": 8,
+     "end": 15,
+     "title": "Write the 2.4 release notes",
+     "evidence": [
+      {
+       "session": "fa1a1a1a",
+       "turn": 8
+      }
+     ]
+    }
+   ],
+   "evidence": [
+    {
+     "session": "fa1a1a1a",
+     "turn": 1
+    },
+    {
+     "session": "fa1a1a1a",
+     "turn": 8
+    }
+   ],
+   "status": "pending",
+   "created_at": "2026-10-09T00:15:09.521Z"
+  },
+  "e37600b09734": {
+   "id": "e37600b09734",
+   "type": "title",
+   "title": "Investigate the 500 error on the orders endpoint with an empty cart",
+   "sessions": [
+    "f2a2b2c2-1301-4301-8301-000000001301"
+   ],
+   "shorts": [
+    "f2a2b2c2"
+   ],
+   "reason": "",
+   "confidence": "medium",
+   "evidence": [],
+   "status": "pending",
+   "created_at": "2026-10-09T00:15:09.521Z"
+  },
+  "839559998527": {
+   "id": "839559998527",
+   "type": "title",
+   "title": "Rewrite the onboarding guide for new contributors",
+   "sessions": [
+    "f5a5b5c5-1304-4304-8304-000000001304"
+   ],
+   "shorts": [
+    "f5a5b5c5"
+   ],
+   "reason": "",
+   "confidence": "medium",
+   "evidence": [],
+   "status": "pending",
+   "created_at": "2026-10-09T00:15:09.521Z"
+  },
+  "a8570c74a5a3": {
+   "id": "a8570c74a5a3",
+   "type": "title",
+   "title": "Check which Node version this repo targets",
+   "sessions": [
+    "d4e5f6a7-0404-4404-8404-000000000404"
+   ],
+   "shorts": [
+    "d4e5f6a7"
+   ],
+   "reason": "",
+   "confidence": "medium",
+   "evidence": [],
+   "status": "pending",
+   "created_at": "2026-10-09T00:15:09.521Z"
+  }
+ }
+}

@@ -32,7 +32,7 @@ test('the CLI prints help, version and the demo task list', () => {
   assert.equal(list.status, 0);
   assert.match(list.stdout, /SHOP-101/);
   assert.match(list.stdout, /session:/); // sessions without a task key are listed one by one
-  assert.equal(JSON.parse(run(['list', '--demo', '--json']).stdout).length, 22);
+  assert.equal(JSON.parse(run(['list', '--demo', '--json']).stdout).length, 23);
   const bad = run(['generate']);
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /Usage: taskrecap generate/);

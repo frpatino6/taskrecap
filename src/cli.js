@@ -101,8 +101,10 @@ export function seedDemoCache(sample, cache) {
   if (!fs.existsSync(sample)) return;
   fs.mkdirSync(cache, { recursive: true });
   for (const name of fs.readdirSync(sample)) {
+    const from = path.join(sample, name);
     const dest = path.join(cache, name);
-    if (!fs.existsSync(dest)) fs.copyFileSync(path.join(sample, name), dest);
+    if (fs.statSync(from).isDirectory()) seedDemoCache(from, dest); // .index/ holds the sample "Organize with AI" proposals
+    else if (!fs.existsSync(dest)) fs.copyFileSync(from, dest);
   }
 }
 
