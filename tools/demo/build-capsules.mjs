@@ -120,12 +120,12 @@ const CAPSULES = {
   'session:c7d7e7f7': {
     objective: 'Replace the three hand-written price formats of the shop with one helper built on Intl.NumberFormat that reads the currency from the store settings.',
     timeline: [
-      { date: '09-28', repo: 'acme-shop', result: 'Found three places that format prices by hand: formatPrice in the cart, toMoney in the product list and a template string in the order email.', cites: c('c7d7e7f7', 0) },
-      { date: '09-28', repo: 'acme-shop', result: 'Added one helper, formatMoney(cents, currency) in src/lib/money.js, built on Intl.NumberFormat, and replaced the three call sites.', cites: c('c7d7e7f7', 1) },
-      { date: '09-28', repo: 'acme-shop', result: 'Checked that the mailer runs Node 18, which supports Intl.NumberFormat with currencies, so no polyfill is needed.', cites: c('c7d7e7f7', 2) },
-      { date: '09-28', repo: 'acme-shop', result: 'Added tests for euros, dollars and yen (a currency with no decimals); all of them pass.', cites: c('c7d7e7f7', 3) },
-      { date: '09-28', repo: 'acme-shop', result: 'Confirmed that totals stay integer cents in the orders service: only the display changes.', cites: c('c7d7e7f7', 4) },
-      { date: '09-28', repo: 'acme-shop', result: 'Committed locally on main and did not push; the pull request is for the next day.', cites: c('c7d7e7f7', 5) },
+      { date: '09-12', repo: 'acme-shop', result: 'Found three places that format prices by hand: formatPrice in the cart, toMoney in the product list and a template string in the order email.', cites: c('c7d7e7f7', 0) },
+      { date: '09-12', repo: 'acme-shop', result: 'Added one helper, formatMoney(cents, currency) in src/lib/money.js, built on Intl.NumberFormat, and replaced the three call sites.', cites: c('c7d7e7f7', 1) },
+      { date: '09-12', repo: 'acme-shop', result: 'Checked that the mailer runs Node 18, which supports Intl.NumberFormat with currencies, so no polyfill is needed.', cites: c('c7d7e7f7', 2) },
+      { date: '09-12', repo: 'acme-shop', result: 'Added tests for euros, dollars and yen (a currency with no decimals); all of them pass.', cites: c('c7d7e7f7', 3) },
+      { date: '09-12', repo: 'acme-shop', result: 'Confirmed that totals stay integer cents in the orders service: only the display changes.', cites: c('c7d7e7f7', 4) },
+      { date: '09-12', repo: 'acme-shop', result: 'Committed locally on main and did not push; the pull request is for the next day.', cites: c('c7d7e7f7', 5) },
     ],
     decisions: [
       { decision: 'Use one helper (formatMoney) built on Intl.NumberFormat instead of three hand-written formatters.', why: 'The three formats were inconsistent across the shop; the helper reads the currency from the store settings.', cites: c('c7d7e7f7', 0, 1), uncertain: false },
@@ -140,13 +140,13 @@ const CAPSULES = {
   [DEMO_GROUP]: {
     objective: 'Add search to the docs site with a local index built when the docs are built (no external service) and a keyboard-friendly search box in the navbar.',
     timeline: [
-      { date: '09-29', repo: 'acme-docs', result: 'Compared Algolia DocSearch with a local index: DocSearch needs an application, a local index works offline with no account.', cites: c('c8d8e8f8', 0) },
-      { date: '09-29', repo: 'acme-docs', result: 'Chose the local index, built by scripts/build-search-index.js when the docs are built.', cites: c('c8d8e8f8', 1) },
-      { date: '09-29', repo: 'acme-docs', result: 'Kept the index small: titles, headings and one paragraph per page (84 kB for 120 pages).', cites: c('c8d8e8f8', 2) },
-      { date: '10-01', repo: 'acme-docs', result: 'Added the search box component to the navbar; it loads search-index.json the first time it gets focus.', cites: c('c9d9e9f9', 0) },
-      { date: '10-01', repo: 'acme-docs', result: 'Results open with the keyboard and the matching words are highlighted.', cites: c('c9d9e9f9', 1) },
-      { date: '10-01', repo: 'acme-docs', result: 'Added a test: a query for webhooks finds the three webhook pages.', cites: c('c9d9e9f9', 2) },
-      { date: '10-01', repo: 'acme-docs', result: 'Committed locally on main without pushing, so the docs lead can review first.', cites: c('c9d9e9f9', 3) },
+      { date: '09-12', repo: 'acme-docs', result: 'Compared Algolia DocSearch with a local index: DocSearch needs an application, a local index works offline with no account.', cites: c('c8d8e8f8', 0) },
+      { date: '09-12', repo: 'acme-docs', result: 'Chose the local index, built by scripts/build-search-index.js when the docs are built.', cites: c('c8d8e8f8', 1) },
+      { date: '09-12', repo: 'acme-docs', result: 'Kept the index small: titles, headings and one paragraph per page (84 kB for 120 pages).', cites: c('c8d8e8f8', 2) },
+      { date: '09-13', repo: 'acme-docs', result: 'Added the search box component to the navbar; it loads search-index.json the first time it gets focus.', cites: c('c9d9e9f9', 0) },
+      { date: '09-13', repo: 'acme-docs', result: 'Results open with the keyboard and the matching words are highlighted.', cites: c('c9d9e9f9', 1) },
+      { date: '09-13', repo: 'acme-docs', result: 'Added a test: a query for webhooks finds the three webhook pages.', cites: c('c9d9e9f9', 2) },
+      { date: '09-13', repo: 'acme-docs', result: 'Committed locally on main without pushing, so the docs lead can review first.', cites: c('c9d9e9f9', 3) },
     ],
     decisions: [
       { decision: 'Use a local search index and no external service.', why: 'The user wanted no external service; a local index works offline and needs no account.', cites: c('c8d8e8f8', 0, 1), uncertain: false },

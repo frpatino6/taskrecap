@@ -8,12 +8,12 @@ Replace the three hand-written price formats of the shop with one helper built o
 ## Timeline
 | Date | Repo | Result | Evidence |
 |---|---|---|---|
-| 09-28 | acme-shop | Found three places that format prices by hand: formatPrice in the cart, toMoney in the product list and a template string in the order email. | `c7d7e7f7:0` |
-| 09-28 | acme-shop | Added one helper, formatMoney(cents, currency) in src/lib/money.js, built on Intl.NumberFormat, and replaced the three call sites. | `c7d7e7f7:1` |
-| 09-28 | acme-shop | Checked that the mailer runs Node 18, which supports Intl.NumberFormat with currencies, so no polyfill is needed. | `c7d7e7f7:2` |
-| 09-28 | acme-shop | Added tests for euros, dollars and yen (a currency with no decimals); all of them pass. | `c7d7e7f7:3` |
-| 09-28 | acme-shop | Confirmed that totals stay integer cents in the orders service: only the display changes. | `c7d7e7f7:4` |
-| 09-28 | acme-shop | Committed locally on main and did not push; the pull request is for the next day. | `c7d7e7f7:5` |
+| 09-12 | acme-shop | Found three places that format prices by hand: formatPrice in the cart, toMoney in the product list and a template string in the order email. | `c7d7e7f7:0` |
+| 09-12 | acme-shop | Added one helper, formatMoney(cents, currency) in src/lib/money.js, built on Intl.NumberFormat, and replaced the three call sites. | `c7d7e7f7:1` |
+| 09-12 | acme-shop | Checked that the mailer runs Node 18, which supports Intl.NumberFormat with currencies, so no polyfill is needed. | `c7d7e7f7:2` |
+| 09-12 | acme-shop | Added tests for euros, dollars and yen (a currency with no decimals); all of them pass. | `c7d7e7f7:3` |
+| 09-12 | acme-shop | Confirmed that totals stay integer cents in the orders service: only the display changes. | `c7d7e7f7:4` |
+| 09-12 | acme-shop | Committed locally on main and did not push; the pull request is for the next day. | `c7d7e7f7:5` |
 
 ## Decisions and why
 - **Use one helper (formatMoney) built on Intl.NumberFormat instead of three hand-written formatters.** — The three formats were inconsistent across the shop; the helper reads the currency from the store settings. `c7d7e7f7:0` `c7d7e7f7:1`

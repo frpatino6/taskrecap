@@ -4,7 +4,7 @@
   "objective": "Add search to the docs site with a local index built when the docs are built (no external service) and a keyboard-friendly search box in the navbar.",
   "timeline": [
    {
-    "date": "09-29",
+    "date": "09-12",
     "repo": "acme-docs",
     "result": "Compared Algolia DocSearch with a local index: DocSearch needs an application, a local index works offline with no account.",
     "cites": [
@@ -15,7 +15,7 @@
     ]
    },
    {
-    "date": "09-29",
+    "date": "09-12",
     "repo": "acme-docs",
     "result": "Chose the local index, built by scripts/build-search-index.js when the docs are built.",
     "cites": [
@@ -26,7 +26,7 @@
     ]
    },
    {
-    "date": "09-29",
+    "date": "09-12",
     "repo": "acme-docs",
     "result": "Kept the index small: titles, headings and one paragraph per page (84 kB for 120 pages).",
     "cites": [
@@ -37,7 +37,7 @@
     ]
    },
    {
-    "date": "10-01",
+    "date": "09-13",
     "repo": "acme-docs",
     "result": "Added the search box component to the navbar; it loads search-index.json the first time it gets focus.",
     "cites": [
@@ -48,7 +48,7 @@
     ]
    },
    {
-    "date": "10-01",
+    "date": "09-13",
     "repo": "acme-docs",
     "result": "Results open with the keyboard and the matching words are highlighted.",
     "cites": [
@@ -59,7 +59,7 @@
     ]
    },
    {
-    "date": "10-01",
+    "date": "09-13",
     "repo": "acme-docs",
     "result": "Added a test: a query for webhooks finds the three webhook pages.",
     "cites": [
@@ -70,7 +70,7 @@
     ]
    },
    {
-    "date": "10-01",
+    "date": "09-13",
     "repo": "acme-docs",
     "result": "Committed locally on main without pushing, so the docs lead can review first.",
     "cites": [
@@ -145,25 +145,25 @@
    "short": "acme-docs/scripts/build-search-index.js",
    "edits": 2,
    "status": "final",
-   "last": "2026-09-29T11:50:00.000Z"
+   "last": "2026-09-12T14:50:00.000Z"
   },
   {
    "short": "acme-docs/src/components/SearchBox.js",
    "edits": 2,
    "status": "final",
-   "last": "2026-10-01T15:25:00.000Z"
+   "last": "2026-09-13T15:25:00.000Z"
   },
   {
    "short": "acme-docs/src/theme/Navbar.js",
    "edits": 1,
    "status": "final",
-   "last": "2026-10-01T15:00:00.000Z"
+   "last": "2026-09-13T15:00:00.000Z"
   },
   {
    "short": "acme-docs/tests/search.test.js",
    "edits": 1,
    "status": "final",
-   "last": "2026-10-01T15:50:00.000Z"
+   "last": "2026-09-13T15:50:00.000Z"
   }
  ],
  "commits": {
@@ -193,7 +193,7 @@
   "llm_calls": 0,
   "cost_usd": 0
  },
- "markdown": "# Work capsule · Search for the docs site\n\n> Generated automatically from: `c8d8e8f8` (turns 0-2), `c9d9e9f9` (turns 0-3). Citations `session:turn` point to the evidence.\n\n## Objective\nAdd search to the docs site with a local index built when the docs are built (no external service) and a keyboard-friendly search box in the navbar.\n\n## Timeline\n| Date | Repo | Result | Evidence |\n|---|---|---|---|\n| 09-29 | acme-docs | Compared Algolia DocSearch with a local index: DocSearch needs an application, a local index works offline with no account. | `c8d8e8f8:0` |\n| 09-29 | acme-docs | Chose the local index, built by scripts/build-search-index.js when the docs are built. | `c8d8e8f8:1` |\n| 09-29 | acme-docs | Kept the index small: titles, headings and one paragraph per page (84 kB for 120 pages). | `c8d8e8f8:2` |\n| 10-01 | acme-docs | Added the search box component to the navbar; it loads search-index.json the first time it gets focus. | `c9d9e9f9:0` |\n| 10-01 | acme-docs | Results open with the keyboard and the matching words are highlighted. | `c9d9e9f9:1` |\n| 10-01 | acme-docs | Added a test: a query for webhooks finds the three webhook pages. | `c9d9e9f9:2` |\n| 10-01 | acme-docs | Committed locally on main without pushing, so the docs lead can review first. | `c9d9e9f9:3` |\n\n## Decisions and why\n- **Use a local search index and no external service.** — The user wanted no external service; a local index works offline and needs no account. `c8d8e8f8:0` `c8d8e8f8:1`\n- **Index only titles, headings and the first paragraph of each page.** — Keeps search-index.json small: 84 kB for 120 pages. `c8d8e8f8:2`\n- **Do not push the commit; the docs lead reviews first.** — The user asked for a local commit only and wants the docs lead to review it. `c9d9e9f9:3`\n\n## Files touched\n**Final**\n- `acme-docs/scripts/build-search-index.js` (2x)\n- `acme-docs/src/components/SearchBox.js` (2x)\n- `acme-docs/src/theme/Navbar.js` (1x)\n- `acme-docs/tests/search.test.js` (1x)\n\n## Commits\n_(none)_\n\n## Dead ends\n_(none)_\n\n## Left out\n- The branch is not pushed: the commit stays local until the docs lead has reviewed it. `c9d9e9f9:3`\n\n## Pending\n- Push the commit after the review of the docs lead.\n\n## Briefing to resume\n> Docs search of acme-docs (no task key, two sessions grouped by the user, branch main, committed locally, NOT pushed): search runs on a local index, search-index.json, written by scripts/build-search-index.js when the docs are built (titles, headings and the first paragraph of each page, 84 kB for 120 pages). The navbar search box (src/components/SearchBox.js) loads it on first focus, opens results with the keyboard and highlights the matching words. The user ruled out external services such as Algolia DocSearch. A test checks that a query for webhooks finds the three webhook pages. Open item: the docs lead reviews the commit before it is pushed.\n",
+ "markdown": "# Work capsule · Search for the docs site\n\n> Generated automatically from: `c8d8e8f8` (turns 0-2), `c9d9e9f9` (turns 0-3). Citations `session:turn` point to the evidence.\n\n## Objective\nAdd search to the docs site with a local index built when the docs are built (no external service) and a keyboard-friendly search box in the navbar.\n\n## Timeline\n| Date | Repo | Result | Evidence |\n|---|---|---|---|\n| 09-12 | acme-docs | Compared Algolia DocSearch with a local index: DocSearch needs an application, a local index works offline with no account. | `c8d8e8f8:0` |\n| 09-12 | acme-docs | Chose the local index, built by scripts/build-search-index.js when the docs are built. | `c8d8e8f8:1` |\n| 09-12 | acme-docs | Kept the index small: titles, headings and one paragraph per page (84 kB for 120 pages). | `c8d8e8f8:2` |\n| 09-13 | acme-docs | Added the search box component to the navbar; it loads search-index.json the first time it gets focus. | `c9d9e9f9:0` |\n| 09-13 | acme-docs | Results open with the keyboard and the matching words are highlighted. | `c9d9e9f9:1` |\n| 09-13 | acme-docs | Added a test: a query for webhooks finds the three webhook pages. | `c9d9e9f9:2` |\n| 09-13 | acme-docs | Committed locally on main without pushing, so the docs lead can review first. | `c9d9e9f9:3` |\n\n## Decisions and why\n- **Use a local search index and no external service.** — The user wanted no external service; a local index works offline and needs no account. `c8d8e8f8:0` `c8d8e8f8:1`\n- **Index only titles, headings and the first paragraph of each page.** — Keeps search-index.json small: 84 kB for 120 pages. `c8d8e8f8:2`\n- **Do not push the commit; the docs lead reviews first.** — The user asked for a local commit only and wants the docs lead to review it. `c9d9e9f9:3`\n\n## Files touched\n**Final**\n- `acme-docs/scripts/build-search-index.js` (2x)\n- `acme-docs/src/components/SearchBox.js` (2x)\n- `acme-docs/src/theme/Navbar.js` (1x)\n- `acme-docs/tests/search.test.js` (1x)\n\n## Commits\n_(none)_\n\n## Dead ends\n_(none)_\n\n## Left out\n- The branch is not pushed: the commit stays local until the docs lead has reviewed it. `c9d9e9f9:3`\n\n## Pending\n- Push the commit after the review of the docs lead.\n\n## Briefing to resume\n> Docs search of acme-docs (no task key, two sessions grouped by the user, branch main, committed locally, NOT pushed): search runs on a local index, search-index.json, written by scripts/build-search-index.js when the docs are built (titles, headings and the first paragraph of each page, 84 kB for 120 pages). The navbar search box (src/components/SearchBox.js) loads it on first focus, opens results with the keyboard and highlights the matching words. The user ruled out external services such as Algolia DocSearch. A test checks that a query for webhooks finds the three webhook pages. Open item: the docs lead reviews the commit before it is pushed.\n",
  "unit": {
   "id": "user:3f2b6c1e-8d4a-4b7e-9a51-0c6d2e7f1a90",
   "source": "user",
@@ -210,5 +210,5 @@
    }
   ]
  },
- "generated_at": "2026-10-09T00:29:44Z"
+ "generated_at": "2026-10-09T00:41:37Z"
 }
