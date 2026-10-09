@@ -171,7 +171,7 @@ async function startAiSearch() {
         onMatch: (ev, el) => {
           const t = TASKS.find((x) => x.key === ev.key), row = document.createElement("div"), open = document.createElement("button");
           row.className = "pg-match";
-          open.type = "button"; open.textContent = ev.key;
+          open.type = "button"; open.textContent = keyName(ev.key);
           open.addEventListener("click", () => { location.hash = "#/task/" + encodeURIComponent(ev.key); });
           row.append(open, document.createTextNode(ev.reason || (t ? t.snippet : "")));
           el.append(row);

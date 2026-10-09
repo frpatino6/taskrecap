@@ -43,10 +43,11 @@ const goHome = async () => {
   await page.waitForSelector('.card');
   await page.waitForSelector('#organize .organizepanel');
 };
+const DEMO_BATCH = '9c1d4e7a-2b5f-4a38-8d60-1e3f5a7b9c20'; // the demo's own sample correction (two docs sessions grouped): not something a check did
 const resetAll = async () => {
   for (let i = 0; i < 30; i++) {
     const last = (await api('/api/units/history')).last;
-    if (!last) break;
+    if (!last || last.batch === DEMO_BATCH) break;
     await post('/api/units/undo');
   }
 };

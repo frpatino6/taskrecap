@@ -13,6 +13,12 @@ function unitTitle(t) {
   return fmt(S.unit_fallback_session, { repo, date: when });
 }
 
+/** What to call a unit given only its key (file lists, search results): its title when the page knows it, else the key itself. */
+function keyName(key) {
+  const t = TASKS.find((x) => x.key === key);
+  return t ? unitTitle(t) : key;
+}
+
 /** Chips that say where a unit comes from: guessed (one session) or made by the user. */
 function unitChips(t) {
   let out = "";

@@ -296,7 +296,6 @@
   "unit_fallback_group": "Grupo sin nombre",
   "related": "Relacionadas",
   "related_tip": "Mismo repo, escritas con menos de 2 horas de diferencia. Es solo una pista: pueden no tener relación y no se agrupa nada por ti.",
-  "unit_capsule_later": "Las cápsulas para unidades sin clave de tarea llegan en un paso posterior. Aun así puedes leer los mensajes (gratis) y organizarlos aquí.",
   "menu_actions": "Acciones",
   "menu_label": "Acciones para {name}",
   "menu_rename": "Renombrar…",
@@ -419,5 +418,16 @@
   "change_cut": "división con IA",
   "kind_session_part": "Parte de una sesión",
   "org_needs_ai": "Claude Code no está disponible: mira la nota en la página de inicio.",
-  "org_busy": "Ya se está organizando."
+  "org_busy": "Ya se está organizando.",
+  "unit_no_content": "Esta sesión aún no tiene mensajes reales (solo saludos, comandos o etiquetas del editor), así que no hay nada que resumir. Aun así puedes leer los mensajes aquí abajo (gratis).",
+  "estimate_text_known": "Estimado: unos {tokens} tokens, {usd} y {seconds} s, {calls} llamada a Claude sobre {sessions} sesión(es). Los {turns} mensajes ya se conocen, así que se omite el paso de selección. Es una estimación aproximada; el uso real se muestra después.",
+  "ev_votes_skipped_known": "No hace falta selección con IA: los {turns} mensajes de esta unidad en {sessions} sesión(es) ya se conocen",
+  "stale_changed_chip": "Desactualizada · unidad cambiada",
+  "stale_changed_tip": "Las sesiones de esta unidad no son las de las que se escribió la cápsula (una unión, división o movimiento)",
+  "stale_changed_badge": "Desactualizada: las sesiones de esta unidad cambiaron desde {date} ({added} añadidas, {removed} quitadas)",
+  "prev_title": "Existe una cápsula de antes del cambio",
+  "prev_hint": "Esta unidad se hizo con sesiones que tenían una cápsula. Reutilizarla copia esa cápsula aquí y la marca como desactualizada hasta que la regeneres. El original se queda donde estaba; no se borra ni se gasta nada.",
+  "prev_item": "escrita el {date}, {shared} de sus {of} sesión(es) están en esta unidad",
+  "prev_reuse": "Reutilizar esa cápsula",
+  "reused_note": "Reutilizada de {label}"
 }

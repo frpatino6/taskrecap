@@ -296,7 +296,6 @@
   "unit_fallback_group": "Group without a name",
   "related": "Related",
   "related_tip": "Same repo, written within 2 hours of each other. It is only a hint: they may be unrelated, and nothing is grouped for you.",
-  "unit_capsule_later": "Capsules for units without a task key arrive in a later step. You can still read the messages (free) and organise them here.",
   "menu_actions": "Actions",
   "menu_label": "Actions for {name}",
   "menu_rename": "Rename…",
@@ -419,5 +418,16 @@
   "change_cut": "AI split",
   "kind_session_part": "Part of a session",
   "org_needs_ai": "Claude Code is not available: see the note on the home page.",
-  "org_busy": "Organizing is already running."
+  "org_busy": "Organizing is already running.",
+  "unit_no_content": "This session has no real messages yet (only greetings, commands or editor tags), so there is nothing to summarize. You can still read the messages below (free).",
+  "estimate_text_known": "Estimated: about {tokens} tokens, {usd} and {seconds}s, {calls} Claude call over {sessions} session(s). The {turns} messages are already known, so the selection step is skipped. This is a rough estimate; the real usage is shown afterwards.",
+  "ev_votes_skipped_known": "No AI selection needed: the {turns} messages of this unit in {sessions} session(s) are already known",
+  "stale_changed_chip": "Outdated · unit changed",
+  "stale_changed_tip": "The sessions of this unit are not the ones the capsule was written from (a merge, split or move)",
+  "stale_changed_badge": "Outdated: the sessions of this unit changed since {date} ({added} added, {removed} removed)",
+  "prev_title": "A capsule from before the change exists",
+  "prev_hint": "This unit was made from sessions that had a capsule. Reusing it copies that capsule here and marks it outdated until you regenerate it. The original stays where it was; nothing is deleted or spent.",
+  "prev_item": "written {date}, {shared} of its {of} session(s) are in this unit",
+  "prev_reuse": "Reuse that capsule",
+  "reused_note": "Reused from {label}"
 }

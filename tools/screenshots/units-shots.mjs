@@ -59,10 +59,10 @@ await page.locator('#ud-target').selectOption({ value: B });
 await page.locator('#ud-name').fill('Products pagination');
 await shot('units-merge-dialog-light.png');
 await page.locator('#ud-ok').click();
-await page.waitForSelector('.card[data-key^="user:"]');
+await page.waitForSelector('.card[data-key^="user:"]:has-text("Products pagination")');
 
 // 5. the page of a unit
-await page.locator('.card[data-key^="user:"]').click();
+await page.locator('.card[data-key^="user:"]:has-text("Products pagination")').click(); // not the demo's own sample group
 await page.waitForSelector('#detail h1');
 await page.locator('#sess-jump').click();
 await page.waitForSelector('#sesslist .sessrow');
