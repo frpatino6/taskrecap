@@ -236,7 +236,7 @@ test('GET /api/timeline serves the layout; /api/tasks stays light (no activity)'
     assert.deepEqual(tl.lanes.map((l) => l.key), ['session:CCCCCCCC', 'KK-1', 'KK-2']); // newest first; the loose session is its own lane
     assert.equal(tl.lanes.find((l) => l.key === 'KK-1').marks.length, 2);
     assert.equal(tl.lanes[0].unsorted, true);
-    assert.deepEqual(tl.coverage, { ready: 0, total: 2, outdated: 0 });
+    assert.deepEqual(tl.coverage, { ready: 0, total: 3, outdated: 0 }, 'a session with content counts: it can have a capsule');
     assert.deepEqual(tl.all_repos, ['api', 'app']);
     const [, onlyApi] = await get(srv, '/api/timeline?repo=api');
     assert.deepEqual(onlyApi.lanes.map((l) => l.key), ['KK-2']);
@@ -244,7 +244,7 @@ test('GET /api/timeline serves the layout; /api/tasks stays light (no activity)'
     assert.deepEqual(picked.lanes.map((l) => l.key), ['session:CCCCCCCC', 'KK-1']);
     const [, none] = await get(srv, '/api/timeline?capsule=none&limit=1');
     assert.equal(none.shown, 1);
-    assert.equal(none.total, 2);
+    assert.equal(none.total, 3);
     const [, tasks] = await get(srv, '/api/tasks');
     assert.ok(tasks.tasks.every((t) => !('activity' in t)));
   } finally {

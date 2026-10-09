@@ -236,6 +236,11 @@ async function handlePost(app, req, route, res) {
     if (action === 'reject') return send(res, 200, app.rejectProposal(body.id));
     return sendError(res, 404, 'Not found');
   }
+  if (route === '/api/capsule/reuse') { // copy the capsule of a unit that changed to the unit that holds its sessions now (free, nothing is deleted)
+    if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
+    const body = await readJson(req);
+    return send(res, 200, { ok: true, capsule: app.reuseCapsule(body.from, body.to) });
+  }
   if (route === '/api/organize') { // the AI action: needs the explicit confirmation like every other one that spends tokens
     if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
     const body = await readJson(req);

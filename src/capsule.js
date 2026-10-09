@@ -7,10 +7,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_KEY_REGEX } from './config.js';
+import { UserError } from './errors.js';
 import { Aborted, estimateCost, extractJson, isAbort } from './llm.js';
 import { clip, log, makeFindingsScanner, stage, throttle } from './progress.js';
 import { isNoise, segment } from './segment.js';
 import { countRedactions, findKeys, redact, userText } from './sessions.js';
+import { meaningfulText } from './units.js';
 import { basename, jsonRecords } from './util.js';
 
 const GIT_RX = /\bgit\s+(commit|push|checkout|switch|merge|rebase|cherry-pick)\b/;
@@ -24,6 +26,7 @@ const PATH_TOKEN_RX = /[\w@.\-[\]()]+(?:\/[\w@.\-[\]()]+)+/g;
 const EDIT_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'MultiEdit'];
 const LEAD_TURNS = 4;
 export const MAX_TRANSCRIPT_CHARS = 150000;
+
 const CAPSULE_OUTPUT_TOKENS = 3000; // typical size of the structured answer, for the cost estimate
 
 // ---------- loading ----------
@@ -126,6 +129,39 @@ export function parseRanges(obj, nTurns) {
 /** Total number of turns covered by inclusive [start, end] ranges. */
 export const countTurns = (ranges) => ranges.reduce((n, [a, b]) => n + (b - a + 1), 0);
 
+/** Ranges kept inside [0, nTurns - 1] and merged; empty or inverted ones are dropped. */
+export function clampRanges(ranges, nTurns) {
+  const out = [];
+  for (const [a, b] of ranges || []) {
+    const start = Math.max(0, Math.trunc(a));
+    const end = Math.min(nTurns - 1, Math.trunc(b));
+    if (Number.isFinite(start) && Number.isFinite(end) && start <= end) out.push([start, end]);
+  }
+  return mergeRanges(out);
+}
+
+/**
+ * Does this turn carry the work of the unit? Not when it is automatic ("[Request interrupted"), an editor tag or a slash command
+ * alone, a greeting or a compaction summary, unless Claude edited files or ran git in it (that work belongs to the unit).
+ */
+export function usableTurn(t) {
+  if (t.noise) return false;
+  if (t.files.length || t.commands.some((c) => GIT_RX.test(c))) return true;
+  return !t.compaction && Boolean(meaningfulText(t.text));
+}
+
+/**
+ * The turns of a whole session that count for a unit without a task key: every usable turn (see usableTurn), as inclusive ranges.
+ * Nothing is asked of the AI: the unit IS the session, only the noise is left out.
+ */
+export function meaningfulRanges(turns) {
+  const hits = [];
+  turns.forEach((t, i) => {
+    if (usableTurn(t)) hits.push([i, i]);
+  });
+  return mergeRanges(hits);
+}
+
 /**
  * Ask the LLM `votes` times (in parallel); returns the non-empty per-vote ranges (failed/garbage votes are skipped).
  * Each vote reports itself through `emit` as it finishes. A cancel (Aborted) is never swallowed.
@@ -215,9 +251,25 @@ export function boundedTranscript(sessionId, turns, ranges, lead, maxChars) {
   let text = '';
   for (const [pc, rc] of [[700, 500], [350, 250], [180, 120]]) {
     text = buildTranscript(sessionId, turns, ranges, lead, pc, rc);
-    if (text.length <= maxChars) break;
+    if (text.length <= maxChars) return text;
   }
-  return text;
+  if (text.length <= maxChars) return text;
+  // still too large (a session with hundreds of turns): keep the first and the last lines and say how many were left out
+  const lines = text.split('\n');
+  const room = Math.max(1, maxChars - 120);
+  const head = [];
+  const tail = [];
+  let used = 0;
+  let a = 0;
+  let b = lines.length - 1;
+  while (a <= b) {
+    const next = head.length <= tail.length ? lines[a] : lines[b];
+    if (used + next.length + 1 > room) break;
+    used += next.length + 1;
+    if (head.length <= tail.length) { head.push(next); a += 1; } else { tail.push(next); b -= 1; }
+  }
+  const skipped = b - a + 1;
+  return [...head, ...(skipped > 0 ? [`[... ${skipped} lines from the middle of this session were left out to keep the evidence small ...]`] : []), ...tail.reverse()].join('\n');
 }
 
 /**
@@ -441,7 +493,7 @@ export function undoneByReset(commit, events) {
  * Commits made inside `windows` (main session + subagents). Split in 'confirmed' (key in message/branch) and
  * 'possible' (same time window, no key: may belong to another interleaved task). `pushed` comes from any push of the session.
  */
-export function collectCommits(events, windows, key) {
+export function collectCommits(events, windows, key, keyed = true) {
   const pushes = events.filter((e) => e.kind === 'push').map((e) => e.hash);
   const seen = new Set();
   const out = { confirmed: [], possible: [] };
@@ -453,7 +505,8 @@ export function collectCommits(events, windows, key) {
       pushed: pushes.some((p) => p.startsWith(e.hash) || e.hash.startsWith(p)),
     };
     item.undone = undoneByReset(item, events);
-    const match = `${e.msg} ${e.branch}`.toLowerCase().includes(key.toLowerCase());
+    // a unit without a task key has nothing to match: the windows are its own messages, so every commit in them is its commit
+    const match = !keyed || `${e.msg} ${e.branch}`.toLowerCase().includes(key.toLowerCase());
     out[match ? 'confirmed' : 'possible'].push(item);
   }
   return out;
@@ -492,16 +545,28 @@ const CAPSULE_SCHEMA = `{
  "briefing": "one paragraph to paste into a fresh Claude session, including any user rules visible in the evidence"
 }`;
 
-/** files: [{short, edits, status}]; commits: {confirmed: [...], possible: [...]} (real data from tool events). */
-export function buildCapsulePrompt(key, transcript, files, commits, language = 'English') {
+/** The unit a capsule is written for. Without `unit` it is a task key (the key is the name). `keyed: false` = no task key. */
+const unitOf = (key, unit) => ({ keyed: !unit || unit.keyed !== false, label: (unit && unit.label) || '' });
+
+/** files: [{short, edits, status}]; commits: {confirmed: [...], possible: [...]} (real data from tool events). unit: {keyed, label}. */
+export function buildCapsulePrompt(key, transcript, files, commits, language = 'English', unit = null) {
+  const u = unitOf(key, unit);
   const final = files.filter((f) => f.status === 'final').map((f) => `${f.short} (${f.edits}x)`).slice(0, 40);
   const reverted = files.filter((f) => f.status === 'reverted').map((f) => f.short).slice(0, 20);
   const confirmed = commits.confirmed.map(commitLine).slice(0, 20);
   const possible = commits.possible.map(commitLine).slice(0, 20);
+  const what = u.keyed
+    ? `the task ${key}`
+    : `a unit of work that has no task key${u.label ? `, named "${redact(u.label)}"` : ''}`;
+  const keyless = u.keyed ? '' :
+    '- This work has no task key. Do NOT invent a key, ticket number or branch name. The objective comes from what the user asked for in the ' +
+    "evidence; the unit's name is only a hint and may be imperfect.\n";
+  const lead = u.keyed
+    ? 'Lines marked "(lead-up context)" are turns ' + "before the task's work: use them only to explain where the finding came from; they may belong to another task.\n"
+    : 'Every line of the evidence belongs to this work.\n';
   return (
-    `You are an analyst. Below is the evidence (condensed, redacted transcript) of the work on the task ${key}. ` +
-    'Every line starts with a tag [s:<session> t:<turn> date]. Lines marked "(lead-up context)" are turns ' +
-    "before the task's work: use them only to explain where the finding came from; they may belong to another task.\n" +
+    `You are an analyst. Below is the evidence (condensed, redacted transcript) of the work on ${what}. ` +
+    `Every line starts with a tag [s:<session> t:<turn> date]. ${lead}` +
     `Write, in ${language}, a record of the task as JSON with exactly this schema:\n${CAPSULE_SCHEMA}\n` +
     'Strict rules:\n' +
     '- Use ONLY facts present in the evidence. Do not invent. If something is doubtful, set "uncertain": true or say so in the text.\n' +
@@ -513,11 +578,14 @@ export function buildCapsulePrompt(key, transcript, files, commits, language = '
     '- A commit marked "possibly undone by a later reset" is probably no longer on the branch (the changes were left as a pending diff): ' +
     'do not claim it exists in the final state or that "there were no commits"; explain both facts.\n' +
     '- If a commit or push happened without the user asking for it and the evidence shows it (user complaint), say so in the text.\n' +
+    keyless +
     '- Do not include secrets, tokens or passwords.\n\n' +
     `Final files (real data): ${final.join(', ') || 'none'}\n` +
     `Reverted/discarded files (real data): ${reverted.join(', ') || 'none'}\n` +
-    `Commits of the task (real data): ${confirmed.join(' | ') || 'none'}\n` +
-    `Commits in the same time window without the task key (possible, may belong to another task): ${possible.join(' | ') || 'none'}\n\n` +
+    (u.keyed
+      ? `Commits of the task (real data): ${confirmed.join(' | ') || 'none'}\n` +
+        `Commits in the same time window without the task key (possible, may belong to another task): ${possible.join(' | ') || 'none'}\n\n`
+      : `Commits made during this work (real data): ${[...confirmed, ...possible].join(' | ') || 'none'}\n\n`) +
     `EVIDENCE:\n${transcript}`
   );
 }
@@ -559,8 +627,9 @@ function commitMd(c) {
     (c.undone ? ' · _possibly undone by a later reset?_' : '') + ` · ${c.source}`;
 }
 
-export function renderMarkdown(key, cap, files, commits, sources) {
-  const L = [`# Work capsule · ${key}`, '',
+export function renderMarkdown(key, cap, files, commits, sources, unit = null) {
+  const u = unitOf(key, unit);
+  const L = [`# Work capsule · ${u.keyed ? key : redact(u.label) || key}`, '',
     `> Generated automatically from: ${sources.join(', ')}. Citations \`session:turn\` point to the evidence.`, '',
     '## Objective', cap.objective || '_(no data)_', '', '## Timeline',
     '| Date | Repo | Result | Evidence |', '|---|---|---|---|'];
@@ -580,7 +649,7 @@ export function renderMarkdown(key, cap, files, commits, sources) {
     L.push(...reverted.slice(0, 20).map((f) => `- \`${f.short}\` (${f.edits}x)`));
   }
   L.push('', '## Commits');
-  L.push(...(commits.confirmed.length ? commits.confirmed.map(commitMd) : ['_(none carrying the task key)_']));
+  L.push(...(commits.confirmed.length ? commits.confirmed.map(commitMd) : [u.keyed ? '_(none carrying the task key)_' : '_(none)_']));
   if (commits.possible.length) {
     L.push('', '**Same time window, no key** (may belong to another task)');
     L.push(...commits.possible.map(commitMd));
@@ -597,11 +666,14 @@ export function renderMarkdown(key, cap, files, commits, sources) {
 
 /**
  * Does this session need LLM range selection? Only when its prompts cite the key; otherwise the whole session
- * belongs to the task (key came from the branch name, or the session is a single-task one).
+ * belongs to the task (key came from the branch name, or the session is a single-task one). Never when the turns of the unit
+ * are already known (`item.ranges`: a single session, a group of the user's, a part of a session the user or the AI cut).
  */
 export function planRanges(item, key, useLlmRanges) {
-  return useLlmRanges && item.mode === 'keyed' && citesKey(item.turns, key);
+  return useLlmRanges && !item.ranges && item.mode === 'keyed' && citesKey(item.turns, key);
 }
+
+export const PROMPT_BASE_CHARS = 2500; // buildCapsulePrompt() without evidence, files or commits (a test keeps it honest)
 
 /** Rough cost estimate before spending anything. Uses heuristic ranges (no LLM) to size the transcript. */
 export function estimateTask(key, plan, votes = 3, useLlmRanges = true, maxChars = MAX_TRANSCRIPT_CHARS) {
@@ -610,6 +682,11 @@ export function estimateTask(key, plan, votes = 3, useLlmRanges = true, maxChars
   for (const item of plan) {
     const turns = item.turns;
     let ranges;
+    if (item.ranges) {
+      ranges = clampRanges(item.ranges, turns.length);
+      if (ranges.length) chars += boundedTranscript(sid8(item.path), turns, ranges, [], Math.floor(maxChars / Math.max(1, plan.length))).length;
+      continue;
+    }
     if (planRanges(item, key, useLlmRanges)) {
       const [r, cands] = heuristicRanges(turns, key);
       calls += votes;
@@ -620,6 +697,7 @@ export function estimateTask(key, plan, votes = 3, useLlmRanges = true, maxChars
     }
     if (turns.length) chars += boundedTranscript(sid8(item.path), turns, ranges, leadRanges(ranges), Math.floor(maxChars / Math.max(1, plan.length))).length;
   }
+  chars += PROMPT_BASE_CHARS; // the instructions around the evidence
   return estimateCost(calls, chars, CAPSULE_OUTPUT_TOKENS + (calls - 1) * 200);
 }
 
@@ -633,13 +711,30 @@ function maskedIn(turns) {
   return n;
 }
 
+/** How many messages (turns) the plan will send, and whether they are all known without asking the AI. -> {turns, known} */
+export function planSize(plan) {
+  let turns = 0;
+  let known = true;
+  for (const item of plan) {
+    if (item.ranges) turns += countTurns(clampRanges(item.ranges, item.turns.length));
+    else {
+      turns += item.turns.length;
+      known = false;
+    }
+  }
+  return { turns, known: known && plan.length > 0 };
+}
+
 /**
- * plan: [{path, turns, mode: 'keyed'|'whole'}]. `ask` is async: (prompt, {onText}?) -> [text, meta].
+ * plan: [{path, turns, mode: 'keyed'|'whole', ranges?}]. `ranges` (inclusive turn ranges) are the turns of the unit when they are
+ * already known: the AI is not asked to pick them and no lead-up turns are added.
+ * `unit` ({keyed, label}) says what the capsule is about when it is not a task key. `ask` is async: (prompt, {onText}?) -> [text, meta].
  * Returns a result dict (also the cache format). `emit` (optional) receives real progress events (see progress.js);
  * `signal` (optional AbortSignal) stops the pipeline between steps (running LLM calls are stopped by `ask` itself).
  */
-export async function generate(key, plan, ask, { votes = 3, language = 'English', useLlmRanges = true, maxChars = MAX_TRANSCRIPT_CHARS, emit = null, signal = null } = {}) {
+export async function generate(key, plan, ask, { votes = 3, language = 'English', useLlmRanges = true, maxChars = MAX_TRANSCRIPT_CHARS, emit = null, signal = null, unit = null } = {}) {
   if (!plan.length) throw new Error(`No sessions found for ${key}`);
+  const u = unitOf(key, unit);
   const check = () => {
     if (signal && signal.aborted) throw new Aborted();
   };
@@ -652,7 +747,9 @@ export async function generate(key, plan, ask, { votes = 3, language = 'English'
   stage(emit, 'redact', 'done', masked ? 'redact_done' : 'redact_none', { masked, turns: nPrompts });
 
   const needsVotes = withTurns.some((item) => planRanges(item, key, useLlmRanges));
+  const size = planSize(withTurns);
   if (needsVotes) stage(emit, 'votes', 'running');
+  else if (size.known) stage(emit, 'votes', 'skipped', 'votes_skipped_known', { sessions: withTurns.length, turns: size.turns });
   else stage(emit, 'votes', 'skipped', 'votes_skipped', { sessions: withTurns.length });
   const selected = [];
   const modes = {};
@@ -662,7 +759,10 @@ export async function generate(key, plan, ask, { votes = 3, language = 'English'
     const sid = sid8(item.path);
     if (!turns.length) continue;
     let ranges;
-    if (planRanges(item, key, useLlmRanges)) {
+    if (item.ranges) {
+      ranges = clampRanges(item.ranges, turns.length);
+      modes[sid] = 'known-ranges';
+    } else if (planRanges(item, key, useLlmRanges)) {
       [ranges, modes[sid]] = await selectRanges(key, item.path, turns, ask, votes, emit);
     } else if (item.mode === 'keyed' && citesKey(turns, key)) {
       [ranges] = heuristicRanges(turns, key);
@@ -676,7 +776,10 @@ export async function generate(key, plan, ask, { votes = 3, language = 'English'
   if (needsVotes) stage(emit, 'votes', 'done', 'votes_done', { sessions: withTurns.filter((item) => planRanges(item, key, useLlmRanges)).length });
 
   stage(emit, 'merge', 'running');
-  if (!selected.length) throw new Error(`No usable turns found for ${key}`);
+  if (!selected.length) {
+    if (!u.keyed) throw new UserError('This unit has no real messages to summarize.');
+    throw new Error(`No usable turns found for ${key}`);
+  }
   const selectedTurns = selected.reduce((n, s) => n + countTurns(s.ranges), 0);
   stage(emit, 'merge', 'done', 'merge_done', { turns: selectedTurns, sessions: selected.length, ranges: selected.reduce((n, s) => n + s.ranges.length, 0) });
 
@@ -688,14 +791,14 @@ export async function generate(key, plan, ask, { votes = 3, language = 'English'
   const commitParts = [];
   const sources = [];
   for (const { item, sid, ranges } of selected) {
-    const lead = leadRanges(ranges);
+    const lead = item.ranges ? [] : leadRanges(ranges); // known turns: nothing around them is borrowed
     valid[sid] = mergeRanges([...ranges, ...lead]);
     sources.push(`\`${sid}\` (turns ${ranges.map(([a, b]) => `${a}-${b}`).join(', ')})`);
     parts.push(boundedTranscript(sid, item.turns, ranges, lead, Math.floor(maxChars / Math.max(1, plan.length))));
     const events = scanEvents(item.path);
     const windows = sessionWindows(item.turns, ranges);
     fileLists.push(collectFiles(events, windows));
-    commitParts.push(collectCommits(events, windows, key));
+    commitParts.push(collectCommits(events, windows, key, u.keyed));
   }
   const transcript = parts.join('\n');
   const files = mergeFiles(fileLists);
@@ -714,7 +817,7 @@ export async function generate(key, plan, ask, { votes = 3, language = 'English'
       tick(text);
     };
   }
-  const [text, meta] = await ask(buildCapsulePrompt(key, transcript, files, commits, language), { onText });
+  const [text, meta] = await ask(buildCapsulePrompt(key, transcript, files, commits, language, u), { onText });
   stage(emit, 'write', 'done', 'write_done', { tokens: ((meta && meta.input_tokens) || 0) + ((meta && meta.output_tokens) || 0) });
 
   stage(emit, 'validate', 'running');
@@ -728,6 +831,6 @@ export async function generate(key, plan, ask, { votes = 3, language = 'English'
   const publicFiles = files.map(({ path: _omit, ...rest }) => rest); // no absolute paths in the cache
   return {
     key, capsule: clean, files: publicFiles, commits, sources, info,
-    markdown: renderMarkdown(key, clean, files, commits, sources),
+    markdown: renderMarkdown(key, clean, files, commits, sources, u),
   };
 }

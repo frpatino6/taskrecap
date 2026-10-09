@@ -262,8 +262,10 @@ export function shortIds(sessions) {
 export const isSessionKey = (key) => /^session:/.test(String(key));
 export const isPartKey = (key) => /^session:[^#]+#\d+-\d+$/.test(String(key)); // one message range of a session the user (or the AI) cut
 export const isUserKey = (key) => /^user:/.test(String(key));
-/** Only task keys and branches can have a capsule for now; session and user units are read through their Sessions list. */
-export const isGeneratableKey = (key) => !isSessionKey(key) && !isUserKey(key) && key !== UNASSIGNED;
+/** Every unit can have a capsule (task keys, branches, single sessions, groups, AI-organized parts); only the empty placeholder cannot. */
+export const isGeneratableKey = (key) => key !== UNASSIGNED;
+/** Units whose messages are known without asking the AI which ones belong to them: one session, a group of the user's, a part. */
+export const isKeylessKey = (key) => isSessionKey(key) || isUserKey(key);
 
 /** The `id` of a unit: key:<KEY>, branch:<name>, session:<id8>, user:<uuid>. */
 export const unitId = (key, source) => (source === 'key' ? `key:${key}` : source === 'branch' ? `branch:${key}` : key);

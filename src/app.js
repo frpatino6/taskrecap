@@ -14,10 +14,11 @@ import { STAGES, clip, log, makeMatchScanner, makeReporter, stage, throttle } fr
 import { buildTimeline } from './timeline.js';
 import { CapsuleSearch } from './search.js';
 import { redact } from './sessions.js';
-import { CapsuleStore, SessionIndex, capsuleStaleness, isGeneratable, planTask } from './tasks.js';
+import { CapsuleStore, SessionIndex, capsuleDrift, capsuleStaleness, isGeneratable, planTask, unitMeta } from './tasks.js';
 import { pageMessages } from './messages.js';
 import { UsageTracker, sumMetas } from './usage.js';
 import { MAX_LABEL, Overrides, isUserKey } from './units.js';
+import { UNASSIGNED } from './sessions.js';
 import { OrganizeStore, Organizer } from './organize.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -160,27 +161,39 @@ export class App {
 
   /**
    * `activity` (days with prompts, only the timeline needs it) is left out unless asked for. A task with a capsule also
-   * carries `outdated` and `new_messages`: how many of its messages were written after the capsule (free, see capsuleStaleness).
-   * Units the user hid are left out unless `includeHidden`.
+   * carries `outdated`, `new_messages` (how many of its messages were written after the capsule, free, see capsuleStaleness) and
+   * `capsule_changed` (the sessions of the unit are not the ones the capsule was written from: a merge, a move, a split).
+   * Units the user hid are left out unless `includeHidden`. A session with no real content cannot have a capsule.
    */
   listTasks({ activity = false, includeHidden = false } = {}) {
     const caps = new Map(this.store.all().map((c) => [c.key, c]));
     const tasks = this.index.tasks({ includeHidden });
-    const sessions = caps.size ? this.index.sessions() : [];
     for (const t of tasks) {
       const cap = caps.get(t.key);
       t.has_capsule = Boolean(cap);
       t.objective = (cap && cap.capsule && cap.capsule.objective) || '';
-      t.generatable = isGeneratable(t.key);
+      t.generatable = isGeneratable(t.key) && !t.noise;
       if (cap) {
-        const st = capsuleStaleness(sessions, t.key, cap.generated_at);
-        t.outdated = st.new_messages > 0;
+        const views = this.index.unitViews(t.key);
+        const st = capsuleStaleness(views, t.key, cap.generated_at);
+        const drift = capsuleDrift(cap, views, st);
         t.new_messages = st.new_messages;
+        t.capsule_changed = Boolean(drift && drift.changed);
+        t.outdated = st.new_messages > 0 || t.capsule_changed;
         t.capsule_at = st.known ? cap.generated_at : null;
       }
       if (!activity) delete t.activity;
     }
     return tasks;
+  }
+
+  /** `key:ABC-123` / `branch:x` (the stable ids of units) and `ABC-123` / `x` (the keys the pages use) name the same unit. -> the unit key */
+  resolveUnitKey(ref) {
+    const k = String(ref == null ? '' : ref);
+    const units = this.index.unitMap().units;
+    if (units.has(k)) return k;
+    const m = k.match(/^(?:key|branch):(.+)$/s);
+    return m && units.has(m[1]) ? m[1] : k;
   }
 
   /** The home timeline (free, local): see buildTimeline for the options. */
@@ -193,9 +206,12 @@ export class App {
    * (`main`), whether it also holds other tasks (`mixed`) and how many of its messages are newer than the capsule.
    * `stale` is null without a capsule; `markable` says the key can be found in the text of messages (a branch name cannot).
    */
-  taskDetail(key) {
+  taskDetail(ref) {
+    const key = this.resolveUnitKey(ref);
     const cap = this.store.load(key);
-    const stale = cap ? capsuleStaleness(this.index.sessions(), key, cap.generated_at) : null;
+    const views = cap ? this.index.unitViews(key) : [];
+    const stale = cap ? capsuleStaleness(views, key, cap.generated_at) : null;
+    const drift = cap ? capsuleDrift(cap, views, stale) : null;
     const sessions = this.index.taskSessions(key).map(([s]) => {
       const { path: _p, mentions, prompt_ts: _t, mention_ts: _mt, ...rest } = s;
       return {
@@ -208,8 +224,55 @@ export class App {
     if (!task && !sessions.length && !cap) return null;
     return {
       task, sessions, capsule: this.withRowTimes(cap), markable: this.isMarkable(key),
-      stale: stale ? { known: stale.known, generated_at: stale.known ? cap.generated_at : null, new_messages: stale.new_messages, new_sessions: stale.new_sessions } : null,
+      stale: stale ? {
+        known: stale.known, generated_at: stale.known ? cap.generated_at : null, new_messages: stale.new_messages, new_sessions: stale.new_sessions,
+        changed: Boolean(drift && drift.changed), added: drift ? drift.added : 0, removed: drift ? drift.removed : 0,
+        reused_from: cap.reused_from ? { key: cap.reused_from.key, label: cap.reused_from.label || cap.reused_from.key } : null,
+      } : null,
+      previous: cap || !task ? [] : this.previousCapsules(key),
     };
+  }
+
+  /**
+   * Capsules of units that no longer exist (merged, split, moved away) whose sessions are in unit `key` now: the "capsule from before
+   * the change" the page offers to reuse. Nothing is ever deleted; a reused capsule is a copy. -> [{key, label, generated_at, objective, shared, of}]
+   */
+  previousCapsules(key) {
+    const units = this.index.unitMap().units;
+    const mine = this.index.unitViews(key).map((v) => ({ session: v.id, range: v.range || null }));
+    const meets = (a, b) => a.session === b.session && (!a.range || !b.range || (a.range[0] <= b.range[1] && b.range[0] <= a.range[1]));
+    const out = [];
+    for (const cap of this.store.all()) {
+      if (cap.key === key || units.has(cap.key) || !cap.unit || !Array.isArray(cap.unit.basis)) continue;
+      const shared = cap.unit.basis.filter((b) => mine.some((m) => meets(b, m))).length;
+      if (!shared) continue;
+      out.push({
+        key: cap.key, label: cap.unit.label || cap.key, generated_at: cap.generated_at, objective: (cap.capsule && cap.capsule.objective) || '',
+        shared, of: cap.unit.basis.length,
+      });
+    }
+    return out.sort((a, b) => b.shared - a.shared || (a.generated_at < b.generated_at ? 1 : -1)).slice(0, 5);
+  }
+
+  /**
+   * Free: copy the capsule of a unit that changed (`from`, no longer a unit) to the unit that holds its sessions now (`to`, without a
+   * capsule). The copy keeps the date and the sessions of the original, so the page shows it as outdated until it is regenerated.
+   * The original file stays where it is.
+   */
+  reuseCapsule(from, to) {
+    const dest = this.resolveUnitKey(to);
+    this.requireUnit(dest);
+    if (this.store.load(dest)) throw new UserError('That unit already has a capsule. Regenerate it instead.');
+    const src = this.store.load(String(from || ''));
+    if (!src) throw new UserError('That capsule does not exist (any more).');
+    if (this.index.unitMap().units.has(src.key)) throw new UserError('That capsule still belongs to a unit that exists.');
+    if (!this.previousCapsules(dest).some((p) => p.key === src.key)) throw new UserError('That capsule has no session in common with this unit.');
+    const meta = { ...unitMeta(this.index, dest), basis: (src.unit && src.unit.basis) || [] };
+    const copy = {
+      ...src, key: dest, unit: meta, reused_from: { key: src.key, label: (src.unit && src.unit.label) || src.key, generated_at: src.generated_at },
+      markdown: capsule.renderMarkdown(dest, src.capsule || {}, src.files || [], src.commits || { confirmed: [], possible: [] }, src.sources || [], meta),
+    };
+    return this.store.save(dest, copy, { keepDate: true });
   }
 
   /** A task key written like a work key (ABC-123) can be looked for in message text; a branch name cannot. */
@@ -222,6 +285,7 @@ export class App {
    * `scope`: all | mine (messages citing the task key) | new (written after the capsule). `session` is an id or its first 8 characters.
    */
   sessionMessages({ key = '', session, scope = 'all', offset, limit }) {
+    key = key ? this.resolveUnitKey(key) : '';
     const file = resolveSession(this.index.listFiles(), session);
     const summary = this.index.sessions().find((s) => s.path === file) || null;
     const view = key ? (this.index.taskSessions(key).find(([v]) => v.path === file) || [])[0] : null; // how the unit reads this session
@@ -279,6 +343,7 @@ export class App {
    * came from, used to check that the turn lies inside the messages that capsule was written from.
    */
   evidence({ session, turn, context, key = '' }) {
+    key = key ? this.resolveUnitKey(key) : '';
     const file = resolveSession(this.index.listFiles(), session);
     const cap = key ? this.store.load(key) : null;
     const ranges = cap ? (parseSources(cap.sources)[String(session).toLowerCase()] || null) : null;
@@ -422,26 +487,37 @@ export class App {
   }
 
   // --- AI actions (spend tokens; callers must have confirmed with the user first) ---
+  /** Every unit can get a capsule; the empty placeholder and a session with no real message cannot. */
   checkKey(key) {
-    if (!isGeneratable(key)) {
-      throw new UserError('Sessions without a task key cannot be turned into a capsule yet (capsules for them arrive in a later step). ' +
-        'Name your branches after the task, or mention a task key in your prompts.');
-    }
+    if (key === UNASSIGNED || !isGeneratable(key)) throw new UserError('That is not a unit with a capsule.');
+    const u = this.index.unitMap().units.get(key);
+    if (u && u.noise) throw new UserError('This session has no real messages yet, so there is nothing to summarize.');
   }
 
-  estimate(key) {
-    this.checkKey(key);
+  /** The sessions to read for `key` with their turns; a clear error when there is nothing to send. */
+  planFor(key) {
     const plan = planTask(this.index, key);
     if (!plan.length) throw new UserError(`No sessions found for ${key}`);
+    if (!plan.some((p) => (p.ranges ? p.ranges.length : p.turns.length))) throw new UserError('This unit has no real messages to summarize.');
+    return plan;
+  }
+
+  estimate(ref) {
+    const key = this.resolveUnitKey(ref);
+    this.checkKey(key);
+    const plan = this.planFor(key);
     const est = capsule.estimateTask(key, plan, this.votes);
-    return { ...est, sessions: plan.length, model: this.model };
+    const size = capsule.planSize(plan);
+    return { ...est, sessions: plan.length, turns: size.turns, ranges_known: size.known, model: this.model };
   }
 
   /**
-   * Builds and caches the capsule of `key`. `emit` (optional) receives real progress events; `signal` (optional
-   * AbortSignal) cancels it: running `claude -p` processes are killed and nothing is saved.
+   * Builds and caches the capsule of `key` (a task key, a branch, a session, a group of the user's or a part of a session).
+   * `emit` (optional) receives real progress events; `signal` (optional AbortSignal) cancels it: running `claude -p` processes
+   * are killed and nothing is saved. A unit whose messages are already known skips the range-selection votes.
    */
-  async generate(key, { emit = null, signal = null } = {}) {
+  async generate(ref, { emit = null, signal = null } = {}) {
+    const key = this.resolveUnitKey(ref);
     this.checkKey(key);
     if (this.busy.has(key)) throw new Busy(key);
     this.busy.add(key);
@@ -455,10 +531,11 @@ export class App {
         return res;
       };
       stage(report, 'scan', 'running');
-      const plan = planTask(this.index, key);
-      if (!plan.length) throw new UserError(`No sessions found for ${key}`);
+      const plan = this.planFor(key);
+      const unit = unitMeta(this.index, key);
       stage(report, 'scan', 'done', 'scan_done', { sessions: plan.length, turns: plan.reduce((n, p) => n + p.turns.length, 0) });
-      const result = await capsule.generate(key, plan, ask, { votes: this.votes, language: this.strings.llm_language || 'English', emit: report, signal });
+      const result = await capsule.generate(key, plan, ask, { votes: this.votes, language: this.strings.llm_language || 'English', emit: report, signal, unit });
+      result.unit = unit; // what the capsule was written for: lets the page tell later that the unit changed
       const used = sumMetas(metas);
       result.info.llm_calls = used.calls;
       result.info.cost_usd = used.cost_usd;
