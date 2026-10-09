@@ -147,7 +147,18 @@ test('limit hides older tasks and reports how many are hidden; "all" and keys sh
   assert.deepEqual([first.shown, first.total, first.hidden], [12, 15, 3]);
   assert.equal(buildTimeline(tasks, { limit: 5 }).shown, 5);
   assert.equal(buildTimeline(tasks, { limit: 'all' }).shown, 15);
-  assert.deepEqual(buildTimeline(tasks, { keys: ['T-3', 'T-1', 'NOPE'], limit: 1 }).lanes.map((l) => l.key), ['T-1', 'T-3']); // task order, no limit
+  assert.deepEqual(buildTimeline(tasks, { keys: ['T-3', 'T-1', 'NOPE'], limit: 1 }).lanes.map((l) => l.key), ['T-3', 'T-1']); // newest first, no limit
+});
+
+test('lanes are newest first by the last day left after the filters, and the limit keeps the most recent ones', () => {
+  const tasks = Array.from({ length: 15 }, (_, i) => task(`T-${i}`, [cell(9, 1 + i, 1)]));
+  const tl = buildTimeline(tasks);
+  assert.deepEqual(tl.lanes.map((l) => l.key), Array.from({ length: 12 }, (_, i) => `T-${14 - i}`));
+  assert.deepEqual(buildTimeline([task('OLD', [cell(9, 1, 1)]), task('NEW', [cell(9, 9, 1)])]).lanes.map((l) => l.key), ['NEW', 'OLD']);
+  const tie = buildTimeline([task('X', [cell(9, 5, 1)]), task('Y', [cell(9, 5, 1)])]);
+  assert.deepEqual(tie.lanes.map((l) => l.key), ['X', 'Y']); // same day: incoming order
+  const filtered = buildTimeline([task('A', [cell(9, 2, 1, 'api'), cell(9, 20, 1, 'app')]), task('B', [cell(9, 10, 1, 'api')])], { repo: 'api' });
+  assert.deepEqual(filtered.lanes.map((l) => l.key), ['B', 'A']); // A's last api day (2) is older than B's (10)
 });
 
 test('filters by repo and by date range drop the dots outside, and the tasks left without any', () => {
@@ -183,7 +194,7 @@ test('coverage counts only tasks that can have a capsule, whatever is filtered; 
   ];
   const tl = buildTimeline(tasks, { repo: 'nope-repo' });
   assert.deepEqual(tl.coverage, { ready: 1, total: 3, outdated: 0 });
-  assert.deepEqual(buildTimeline(tasks, { capsule: 'none' }).lanes.map((l) => l.key), ['B-2', 'C-3']); // unassigned cannot have one
+  assert.deepEqual(buildTimeline(tasks, { capsule: 'none' }).lanes.map((l) => l.key), ['C-3', 'B-2']); // unassigned cannot have one
   assert.deepEqual(buildTimeline(tasks, { capsule: 'ready' }).lanes.map((l) => l.key), ['A-1']);
 });
 

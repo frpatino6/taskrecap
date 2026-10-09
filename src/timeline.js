@@ -89,6 +89,8 @@ export function buildTimeline(allTasks, opts = {}) {
     if (cells.length) matching.push({ task: t, cells });
   }
 
+  // most recently active first (by the last day left after the filters); the stable sort keeps the incoming order on ties
+  matching.sort((a, b) => (a.cells[a.cells.length - 1].day < b.cells[b.cells.length - 1].day ? 1 : a.cells[a.cells.length - 1].day > b.cells[b.cells.length - 1].day ? -1 : 0));
   const shown = wanted ? matching : matching.slice(0, parseLimit(opts.limit));
   const days = shown.flatMap((m) => m.cells.map((c) => c.day)).sort();
   let rangeFrom = from || days[0] || to || new Date().toISOString().slice(0, 10);
