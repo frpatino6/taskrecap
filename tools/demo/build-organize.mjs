@@ -42,6 +42,9 @@ async function scripted(prompt) {
   return [JSON.stringify(answer), { cost_usd: 0, input_tokens: 0, output_tokens: 0 }];
 }
 
+// the sample corrections (two docs sessions grouped by the user) apply here too: those sessions are not "unsorted" in the demo
+fs.mkdirSync(path.join(tmp, 'cache', '.index'), { recursive: true });
+fs.copyFileSync(path.join(ROOT, 'demo', 'capsules', '.index', 'overrides.json'), path.join(tmp, 'cache', '.index', 'overrides.json'));
 const app = new App({ projectsDir: path.join(DEMO_DIR, 'sessions'), cacheDir: path.join(tmp, 'cache'), demo: true, ask: scripted });
 const res = await app.organize({});
 const kinds = res.proposals.map((p) => p.type).sort().join(',');
