@@ -44,6 +44,7 @@
     </details>
     <div class="aibox" id="aibox" aria-live="polite"></div>
     <div id="airesults" class="airesults"></div>
+    <section class="organize" id="organize" hidden aria-labelledby="org-h"></section>
     <div class="viewbar" id="viewbar" hidden>
       <div class="seg" id="seg" role="group">
         <button type="button" id="view-timeline" aria-pressed="true"></button>
@@ -82,6 +83,10 @@
   <div class="udbackdrop" id="ud-backdrop"></div>
   <div class="udpanel" role="dialog" aria-modal="true" aria-labelledby="ud-title" tabindex="-1"></div>
 </div>
+<div class="udlg" id="orgdlg" hidden>
+  <div class="udbackdrop" id="org-backdrop"></div>
+  <div class="udpanel orgpanel" role="dialog" aria-modal="true" aria-labelledby="org-dlg-title" tabindex="-1"></div>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="evoverlay" id="evidence" hidden>
   <div class="evbackdrop" id="ev-backdrop"></div>
@@ -93,6 +98,7 @@
 <script src="/js/ai.js"></script>
 <script src="/js/files.js"></script>
 <script src="/js/units.js"></script>
+<script src="/js/organize.js"></script>
 <script src="/js/detail.js"></script>
 <script src="/js/evidence.js"></script>
 <script src="/js/main.js"></script>

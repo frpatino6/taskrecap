@@ -27,8 +27,8 @@ test('tasks are grouped by key, then branch; a session with neither is its own u
   assert.equal(loose.noise, true, '"hello" says nothing about the work: the page folds it into "Sessions without content"');
   assert.equal(loose.unsorted, true);
   assert.equal(isGeneratable('unassigned'), false);
-  assert.equal(isGeneratable('session:BBBBBBBB'), false);
-  assert.equal(isGeneratable('user:1234'), false);
+  assert.equal(isGeneratable('session:BBBBBBBB'), true, 'every unit can have a capsule now');
+  assert.equal(isGeneratable('user:1234'), true);
   assert.equal(isGeneratable('KK-1'), true);
 });
 

@@ -100,7 +100,7 @@ async function refreshUsage() {
 // Handlers only say "my action started / ended" (setAiBusy); the gate only says "Claude Code is / is not there" (INFO.ai).
 const aiState = () => (!INFO.ai || INFO.ai.available === true ? "on" : INFO.ai.available === false ? "off" : "checking");
 const aiOn = () => aiState() === "on";
-const AI_BUTTONS = { search: ["ai-search", "none-ai"], gen: ["gen"] }; // action -> the buttons that start it
+const AI_BUTTONS = { search: ["ai-search", "none-ai"], gen: ["gen"], organize: ["org-run"] }; // action -> the buttons that start it
 const aiBusy = new Set();
 function syncAiButtons() {
   const state = aiState();

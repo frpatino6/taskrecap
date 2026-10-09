@@ -2,6 +2,10 @@
 // ---------- home ----------
 function kindLabel(k) { return S["kind_" + k] || k; }
 
+/** Why a capsule is outdated, in words: new messages since it was written, and/or the sessions of its unit changed (merge, split, move). */
+const staleChipText = (t) => (t.new_messages > 0 ? fmt(S.stale_chip, { n: t.new_messages }) : S.stale_changed_chip);
+const staleTipText = (t) => (t.new_messages > 0 ? fmt(S.stale_tip, { n: t.new_messages }) : S.stale_changed_tip);
+
 function card(t, extra) {
   extra = extra || {};
   const sess = t.sessions + " " + (t.sessions === 1 ? S.session : S.sessions);
@@ -10,7 +14,7 @@ function card(t, extra) {
   const chips = t.projects.slice(0, 3).map((p) => `<span class="chip repo">${esc(p)}</span>`).join("") + unitChips(t) +
     `<span class="chip">${esc(sess)}</span>` + (dates ? `<span class="chip">${esc(dates)}</span>` : "") +
     (t.generatable ? (t.has_capsule ? `<span class="chip done">${esc(S.chip_capsule)}</span>` : `<span class="chip warn">${esc(S.chip_no_capsule)}</span>`) : "") +
-    (t.has_capsule && t.outdated ? `<span class="chip warn" title="${esc(fmt(S.stale_tip, { n: t.new_messages }))}">${esc(fmt(S.stale_chip, { n: t.new_messages }))}</span>` : "");
+    (t.has_capsule && t.outdated ? `<span class="chip warn" title="${esc(staleTipText(t))}">${esc(staleChipText(t))}</span>` : "");
   return `<div class="cardwrap" role="listitem"><button class="card" data-key="${esc(t.key)}" type="button">
     <span class="t">${esc(kindLabel(t.kind))}${t.renamed && t.kind !== "user" ? " · " + esc(t.key) : ""}</span>
     <span class="k${t.kind === "session" || t.kind === "user" ? " kname" : ""}">${esc(title)}</span>
@@ -97,5 +101,6 @@ function renderHome() {
   $("capfilter").hidden = !VZ.noCapsule;
   $("timeline").hidden = !timeline || !!(HITS && !real.length);
   renderCoverage();
+  if (typeof renderOrganize === "function") renderOrganize();
   return timeline && !(HITS && !real.length) ? loadTimeline() : undefined;
 }

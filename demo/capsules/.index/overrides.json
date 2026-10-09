@@ -1,0 +1,17 @@
+{
+ "version": 1,
+ "ops": [
+  {
+   "id": "0b6e1c52-7a3d-4c1f-9e08-5d2a7b9c4e11",
+   "batch": "9c1d4e7a-2b5f-4a38-8d60-1e3f5a7b9c20",
+   "ts": "2026-10-02T09:00:00.000Z",
+   "type": "merge",
+   "unit": "user:3f2b6c1e-8d4a-4b7e-9a51-0c6d2e7f1a90",
+   "members": [
+    "session:c8d8e8f8",
+    "session:c9d9e9f9"
+   ],
+   "label": "Search for the docs site"
+  }
+ ]
+}

@@ -12,7 +12,7 @@ function linkBadge(l) {
 }
 
 function taskRow(l) {
-  return `<li><button class="tasklink" type="button" data-key="${esc(l.key)}"><strong>${esc(l.key)}</strong>` +
+  return `<li><button class="tasklink" type="button" data-key="${esc(l.key)}"><strong>${esc(keyName(l.key))}</strong>` +
     `<span class="chip">${esc(statusLabel(l.status))}</span>${l.edits ? `<span class="chip">${esc(l.edits)}×</span>` : ""}${linkBadge(l)}` +
     `<span class="t">${esc(clip(l.text, 140))}</span></button></li>`;
 }
@@ -36,7 +36,7 @@ async function loadFiles() {
     if ($("fq").value.trim() !== q) return; // a newer query is already running
     const head = q ? fmt(S.files_find_results, { shown: r.files.length, total: r.total }) : S.files_find_top;
     box.innerHTML = r.files.length
-      ? html`<p class="note" style="margin:10px 0 0">${head}</p><ul class="filerows">${r.files.map((f) => html`<li><code>${f.path}</code>${f.tasks.map((t) => html`<button class="tasklink inline" type="button" data-key="${t.key}" title="${statusLabel(t.status)}">${t.key}${t.approximate ? " ~" : ""}</button>`)}</li>`)}</ul><p class="note">${S.files_incomplete_note}</p>`
+      ? html`<p class="note" style="margin:10px 0 0">${head}</p><ul class="filerows">${r.files.map((f) => html`<li><code>${f.path}</code>${f.tasks.map((t) => html`<button class="tasklink inline" type="button" data-key="${t.key}" title="${statusLabel(t.status)}">${keyName(t.key)}${t.approximate ? " ~" : ""}</button>`)}</li>`)}</ul><p class="note">${S.files_incomplete_note}</p>`
       : html`<p class="note" style="margin:10px 0 0">${S.files_find_none}</p>`;
     gotoTask(box);
   } catch (err) { box.innerHTML = html`<p class="err" role="alert">${S.error_prefix} ${err.message}</p>`; }

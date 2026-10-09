@@ -91,7 +91,7 @@ test('merge: two units become one group of the user; split gives them back; undo
   assert.equal(group.label, 'Docs and API');
   assert.equal(group.sessions, 2);
   assert.equal(group.can_split, true);
-  assert.equal(group.generatable, false);
+  assert.equal(group.generatable, true);
   assert.deepEqual(app.taskDetail(r.unit).sessions.map((s) => s.main), [true, true]);
   app.splitUnit(r.unit);
   assert.deepEqual(keys(app), ['KK-1', 'session:BBBBBBBB', 'session:CCCCCCCC']);
@@ -197,9 +197,10 @@ test('the file index and search follow the corrections', () => {
   assert.notEqual(app.fileIndex.index.overridesSignature(), before, 'the persisted file index is rebuilt after a correction');
 });
 
-test('generating a capsule for a session or group unit says it is not available yet', () => {
+test('a session or group unit can be estimated; the placeholder cannot', () => {
   const app = newApp(fixture());
-  assert.throws(() => app.estimate('session:BBBBBBBB'), /later step/);
+  assert.equal(app.estimate('session:BBBBBBBB').ranges_known, true);
   const g = app.mergeUnits(['session:BBBBBBBB', 'session:CCCCCCCC']).unit;
-  assert.throws(() => app.estimate(g), /without a task key/);
+  assert.equal(app.estimate(g).sessions, 2);
+  assert.throws(() => app.estimate('unassigned'), /not a unit with a capsule/);
 });

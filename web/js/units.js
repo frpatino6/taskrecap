@@ -13,11 +13,20 @@ function unitTitle(t) {
   return fmt(S.unit_fallback_session, { repo, date: when });
 }
 
+/** What to call a unit given only its key (file lists, search results): its title when the page knows it, else the key itself. */
+function keyName(key) {
+  const t = TASKS.find((x) => x.key === key);
+  return t ? unitTitle(t) : key;
+}
+
 /** Chips that say where a unit comes from: guessed (one session) or made by the user. */
 function unitChips(t) {
-  if (t.kind === "session") return `<span class="chip unsorted" title="${esc(S.unit_unsorted_tip)}">${esc(S.chip_unsorted)}</span>`;
-  if (t.kind === "user") return `<span class="chip grouped" title="${esc(S.unit_group_tip)}">${esc(S.chip_group)}</span>`;
-  return "";
+  let out = "";
+  if (t.kind === "session") out += `<span class="chip unsorted" title="${esc(S.unit_unsorted_tip)}">${esc(S.chip_unsorted)}</span>`;
+  else if (t.kind === "user") out += `<span class="chip grouped" title="${esc(S.unit_group_tip)}">${esc(S.chip_group)}</span>`;
+  if (t.range) out += `<span class="chip" title="${esc(S.range_tip)}">${esc(fmt(S.chip_range, { a: t.range[0], b: t.range[1] }))}</span>`;
+  if (t.ai) out += `<span class="chip ai" title="${esc(S.org_ai_tip)}">${esc(S.org_ai_chip)}</span>`;
+  return out;
 }
 
 /** "Related: ..." on a card: a hint only (same repo, within 2 hours). It never changes the grouping. */
@@ -136,6 +145,7 @@ const onUnitPage = (key) => location.hash === "#/task/" + encodeURIComponent(key
 async function afterChange(res, message, { go } = {}) {
   TASKS = (await api("/api/tasks")).tasks;
   await refreshHidden();
+  if (typeof refreshOrganize === "function") await refreshOrganize(); // proposals that no longer apply (or apply again after an Undo)
   toast(message, res && res.undo);
   const here = location.hash.match(/^#\/task\/(.+)$/);
   if ((go === undefined || go === null) && here && !unitByKey(decodeURIComponent(here[1]))) go = ""; // the unit we are looking at no longer exists (an undo, a split): back to the list
@@ -248,6 +258,7 @@ async function openUnitMenu(btn, key) {
   const items = [{ label: S.menu_rename, run: () => renameDialog(key) }, { label: S.menu_merge, run: () => mergeDialog(key) }];
   if (t.sessions === 1 && (t.session_ids || []).length === 1) items.push({ label: S.menu_move, run: () => moveDialog(t.session_ids[0], key) });
   if (t.can_split) items.push({ label: S.menu_split, run: () => splitDialog(key), danger: true });
+  if (t.kind === "session" && !t.range && (t.session_ids || []).length === 1 && !t.noise) items.push({ label: S.menu_name_ai, run: () => startOrganize({ sessions: [t.session_ids[0]], titlesOnly: true }), disabled: !aiOn() });
   const isHidden = HIDDEN.units.some((h) => h.key === key);
   items.push(isHidden ? { label: S.menu_unhide, run: () => hideDialog(key, false) } : { label: S.menu_hide, run: () => hideDialog(key, true), danger: true });
   items.push(await undoItem());

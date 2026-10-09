@@ -43,7 +43,7 @@ const promptsText = (n) => (n === 1 ? S.tl_prompt : fmt(S.tl_prompts, { n }));
 const activeDaysText = (n) => (n === 1 ? S.tl_active_day : fmt(S.tl_active_days, { n }));
 const laneKey = (l) => unitTitle(l);
 const laneRepos = (l) => (l.projects.length > 1 ? `${l.project} +${l.projects.length - 1}` : l.project);
-const capsuleText = (l) => (l.generatable ? (l.has_capsule ? S.chip_capsule + (l.outdated ? " · " + fmt(S.stale_tip, { n: l.new_messages }) : "") : S.chip_no_capsule) : "");
+const capsuleText = (l) => (l.generatable ? (l.has_capsule ? S.chip_capsule + (l.outdated ? " · " + staleTipText(l) : "") : S.chip_no_capsule) : "");
 
 function laneSummary(l) {
   return [laneKey(l), laneRepos(l), dayLabel(l.first, true) + (l.last !== l.first ? " – " + dayLabel(l.last, true) : ""), promptsText(l.prompts) + " · " + activeDaysText(l.active_days), capsuleText(l)].filter(Boolean).join(", ");
@@ -71,7 +71,7 @@ function renderTimeline() {
     }).join("");
     return `<div class="vz-row vz-lane">
       <div class="vz-labelwrap"><button type="button" class="vz-label${l.unsorted ? " unsorted" : ""}" data-key="${esc(l.key)}" data-tip="lane" aria-label="${esc(fmt(S.tl_open, { key: laneSummary(l) }))}">
-        <span class="vz-key">${esc(laneKey(l))}${l.has_capsule ? '<i aria-hidden="true">✓</i>' : ""}${l.has_capsule && l.outdated ? `<i class="vz-stale" aria-hidden="true" title="${esc(fmt(S.stale_tip, { n: l.new_messages }))}">↻</i>` : ""}</span><span class="vz-sub">${l.unsorted ? esc(S.chip_unsorted) + " · " : ""}${esc(laneRepos(l))}${(l.related || []).length ? " · " + esc(S.related) + ": " + esc(l.related.map((r) => r.label).join(" · ")) : ""}</span></button>
+        <span class="vz-key">${esc(laneKey(l))}${l.has_capsule ? '<i aria-hidden="true">✓</i>' : ""}${l.has_capsule && l.outdated ? `<i class="vz-stale" aria-hidden="true" title="${esc(staleTipText(l))}">↻</i>` : ""}</span><span class="vz-sub">${l.unsorted ? esc(S.chip_unsorted) + " · " : ""}${esc(laneRepos(l))}${(l.related || []).length ? " · " + esc(S.related) + ": " + esc(l.related.map((r) => r.label).join(" · ")) : ""}</span></button>
         <button type="button" class="lanemenu" data-menu="${esc(l.key)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(fmt(S.menu_label, { name: laneKey(l) }))}">⋯</button></div>
       <div class="vz-track">${grid(tl.ticks)}<i class="vz-line" style="left:${l.line.x1}%;width:${Math.max(0, l.line.x2 - l.line.x1)}%"></i>${marks}</div></div>`;
   };

@@ -110,6 +110,7 @@ export function buildTimeline(allTasks, opts = {}) {
       project, slot: slots.has(project) ? slots.get(project) : -1,
       projects: [...new Set(cells.map((c) => c.project))].sort(),
       has_capsule: !!task.has_capsule, outdated: !!(task.has_capsule && task.outdated), new_messages: task.has_capsule ? task.new_messages || 0 : 0,
+      changed: !!(task.has_capsule && task.capsule_changed),
       generatable: task.generatable !== false,
       prompts: cells.reduce((a, c) => a + c.n, 0), active_days: new Set(cells.map((c) => c.day)).size,
       first: cells[0].day, last: cells[cells.length - 1].day,

@@ -101,7 +101,7 @@ test('the stream endpoint still needs a confirmation and keeps normal HTTP error
   const unassigned = openStream(ok.srv, '/api/generate', { key: 'unassigned', confirm: true });
   await unassigned.finished;
   assert.equal(unassigned.status, 400);
-  assert.match(unassigned.raw, /without a task key/);
+  assert.match(unassigned.raw, /not a unit with a capsule/);
   const foreign = openStream(ok.srv, '/api/generate', { key: 'KK-1', confirm: true }, { Origin: 'https://evil.example.com' });
   await foreign.finished;
   assert.equal(foreign.status, 403);

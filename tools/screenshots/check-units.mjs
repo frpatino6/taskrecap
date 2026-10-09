@@ -51,10 +51,11 @@ const openMenu = async (button) => { await button.click(); await page.waitForSel
 const menuItems = () => page.locator('#unitmenu button').allInnerTexts();
 const clickMenu = async (text) => { await page.locator('#unitmenu button', { hasText: text }).first().click(); };
 const toast = () => page.locator('#toast');
-const resetAll = async () => { // undo everything the checks did, so each one starts from the automatic state
+const DEMO_BATCH = '9c1d4e7a-2b5f-4a38-8d60-1e3f5a7b9c20'; // the demo's own sample correction (two docs sessions grouped): it is not something a check did
+const resetAll = async () => { // undo everything the checks did, so each one starts from the demo's own state
   for (let i = 0; i < 20; i++) {
     const last = await page.evaluate(() => fetch('/api/units/history').then((x) => x.json()).then((h) => h.last));
-    if (!last) break;
+    if (!last || last.batch === DEMO_BATCH) break;
     await page.evaluate(() => fetch('/api/units/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }));
   }
 };
@@ -90,12 +91,12 @@ await check('sessions without content are folded into ONE group, closed by defau
   await page.goBack();
 });
 
-await check('card menu: Rename, Merge, Move, Hide and a disabled Undo; Esc closes and returns focus; arrows move', async () => {
+await check('card menu: Rename, Merge, Move, Name with AI, Hide and Undo (of the demo\'s own sample group); Esc closes and returns focus; arrows move', async () => {
   await goHome();
   await openMenu(cardMenu(A));
   const items = await menuItems();
-  assert.deepEqual(items.map((s) => s.replace(/\(.*\)/, '').trim()), ['Rename…', 'Merge with…', 'Move session…', 'Hide', 'Nothing to undo']);
-  assert.equal(await page.locator('#unitmenu button:last-child').isDisabled(), true);
+  assert.deepEqual(items.map((s) => s.replace(/\(.*\)/, '').trim()), ['Rename…', 'Merge with…', 'Move session…', 'Name with AI…', 'Hide', 'Undo last change']);
+  assert.equal(await page.locator('#unitmenu button:last-child').isDisabled(), false, 'the demo ships one correction (a sample group), so there is something to undo');
   assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Rename…');
   await page.keyboard.press('ArrowDown');
   assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Merge with…');
@@ -180,7 +181,7 @@ await check('hide: confirmation, the card leaves, "Hidden (1)" lists it, Show ag
   assert.ok(await hidden.isHidden());
 });
 
-await check('unit page: Actions menu, related sessions as links, no capsule button but a clear note, Sessions list works', async () => {
+await check('unit page: Actions menu, related sessions as links, a generate button (capsules work for every unit), Sessions list works', async () => {
   await goHome();
   await card(A).click();
   await page.waitForSelector('#detail h1');
@@ -188,9 +189,9 @@ await check('unit page: Actions menu, related sessions as links, no capsule butt
   assert.ok(await page.locator('#unit-menu').isVisible());
   assert.match(await page.locator('.relbox').innerText(), /Related/);
   assert.ok(await page.locator('.relbox .relopen').count());
-  assert.equal(await page.locator('#gen').count(), 0, 'no generate button for a session unit');
-  assert.match(await page.locator('#detail .note').first().innerText(), /later step/);
-  await page.locator('#sess-jump').click(); // jumps to the Sessions section and opens its first session
+  assert.ok(await page.locator('#gen').isVisible(), 'a session unit can get a capsule');
+  assert.equal(await page.locator('#detail .note:has-text("later step")').count(), 0);
+  await page.locator('#detail .note a, #detail .linkbtn#sess-jump').first().click(); // "read the messages first" jumps to the Sessions section and opens its first session
   assert.equal(await page.locator('#sesslist .sessitem').count(), 1);
   await page.waitForSelector('#sesslist .msg');
   assert.ok(await page.locator('#sesslist .sessmenu').isVisible());
@@ -233,7 +234,7 @@ await check('phone width: no horizontal overflow on the home (cards, group) and 
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'home overflows');
   await openMenu(cardMenu(A));
   await clickMenu('Rename');
-  const box = await page.locator('.udpanel').boundingBox();
+  const box = await page.locator('#unitdlg .udpanel').boundingBox();
   assert.ok(box.x >= 0 && box.x + box.width <= 390, 'dialog fits the screen');
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1280, height: 900 });

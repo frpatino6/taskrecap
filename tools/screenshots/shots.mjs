@@ -212,7 +212,7 @@ await page.context().close();
 // ---------- tweet-ready images: dark, 16:9 (1600x900 @2x), demo data only ----------
 // Screenshot-only CSS (never shipped): drop the demo banner and the long explanatory notes so the cards and the search result
 // are what you see. The text of the post should say these are fictional demo sessions.
-const TWEET_CSS = '#banner, #search-note, #filesearch, .lead { display: none !important; } main#home h1 { margin-top: 8px; }';
+const TWEET_CSS = '#banner, #search-note, #filesearch, #organize, .lead { display: none !important; } main#home h1 { margin-top: 8px; }';
 // Search terms for the tweet images. `checkout` was tried first but matches only 3 tasks, one of them without a 'Found in' badge.
 // `test` fills the frame (4 hits, clean excerpts; the last row is cut like a scrolled page); `payment` gives 2 clean cards with empty space below.
 const TWEET_QUERY = 'test';
@@ -242,7 +242,7 @@ await check('tweet images: dark home with ready capsules, idle and with a search
 
 // ---------- home timeline (default view): checks + docs/screenshots/timeline-{light,dark}.png ----------
 // Screenshot-only CSS (never shipped): drop the demo banner, the long notes and the page title so the chart fills the frame.
-const TIMELINE_CSS = '#banner, #search-note, #filesearch, .lead, main#home h1, .controls, .vz-head p { display: none !important; } .viewbar { margin-top: 18px; }';
+const TIMELINE_CSS = '#banner, #search-note, #filesearch, #organize, .lead, main#home h1, .controls, .vz-head p { display: none !important; } .viewbar { margin-top: 18px; }';
 async function timelineShot(scheme, name) {
   const p = await newPage(scheme, null, { view: null, viewport: { width: 1600, height: 900 } });
   await p.goto(base);
@@ -259,8 +259,8 @@ await check('timeline: opens by default with one lane per task, legend, coverage
   assert.equal(await p.locator('.vz-lane').count(), 12, 'default limit is 12 lanes');
   assert.ok((await p.locator('.vz-mark').count()) >= 12, 'dots drawn');
   assert.equal(await p.locator('.vz-legend li').count(), 3, 'three repos in the legend');
-  assert.match(await p.locator('#vz-more').innerText(), /Show 6 more/);
-  assert.match(await p.locator('#coverage-text').innerText(), /6 of 13 tasks have a capsule/);
+  assert.match(await p.locator('#vz-more').innerText(), /Show 9 more/);
+  assert.match(await p.locator('#coverage-text').innerText(), /8 of 21 tasks have a capsule/);
   assert.equal(await p.locator('#grid .card').count(), 0, 'cards are not shown in the timeline view');
   assert.ok((await p.locator('.sr table tbody tr').count()) === 12, 'text alternative has a row per lane');
   await p.context().close();
@@ -296,9 +296,9 @@ await check('timeline: repo filter, show more, capsule coverage filter and Cards
   await p.click('#vz-reset');
   await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 12);
   await p.click('#vz-more');
-  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 18);
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 21);
   await p.click('#coverage');
-  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 7 && !document.getElementById('capfilter').hidden);
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 13 && !document.getElementById('capfilter').hidden);
   assert.equal(await p.locator('#coverage').getAttribute('aria-pressed'), 'true');
   await p.click('#capfilter-clear');
   await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length >= 12);
@@ -325,11 +325,11 @@ await check('timeline: the footer counts every unit with content; the coverage r
   const p = await newPage('light', null, { view: null });
   await p.goto(base);
   await p.waitForSelector('.vz-lane');
-  assert.match(await p.locator('#coverage-text').innerText(), /of 13 tasks/);
-  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 12 of 18 tasks · 4 sessions without content are folded below');
+  assert.match(await p.locator('#coverage-text').innerText(), /of 21 tasks/);
+  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 12 of 21 tasks · 4 sessions without content are folded below');
   await p.click('#vz-more');
-  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 18);
-  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 18 of 18 tasks · 4 sessions without content are folded below');
+  await p.waitForFunction(() => document.querySelectorAll('.vz-lane').length === 21);
+  assert.equal((await p.locator('.vz-foot span').first().innerText()).trim(), 'Showing 21 of 21 tasks · 4 sessions without content are folded below');
   await p.context().close();
 });
 await check('timeline: date boxes only appear for a custom period, a reversed range is swapped, an empty result offers a reset', async () => {

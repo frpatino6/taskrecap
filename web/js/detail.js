@@ -40,15 +40,28 @@ function capsuleHtml(res) {
     sec(S.briefing, `<div class="briefing" id="briefing">${esc(c.briefing || "")}</div>`);
 }
 
-const staleOf = (d) => (d.stale && d.stale.known && d.stale.new_messages > 0 ? d.stale : null);
+/** The stale facts of a capsule: new messages since it was written and/or the sessions of its unit changed. null when it is up to date. */
+const staleOf = (d) => (d.stale && d.stale.known && (d.stale.new_messages > 0 || d.stale.changed) ? d.stale : null);
 const staleText = (st) => fmt(st.new_messages === 1 ? S.stale_badge_one : S.stale_badge, { n: st.new_messages, date: day(st.generated_at) });
+const changedText = (st) => fmt(S.stale_changed_badge, { date: day(st.generated_at), added: st.added, removed: st.removed });
+
+/** A unit that changed (merged, split, moved) starts without a capsule: the one from before the change is offered, as a copy. */
+function previousHtml(d) {
+  const prev = d.previous || [];
+  if (!prev.length) return "";
+  return `<div class="panel prev" role="group" aria-label="${esc(S.prev_title)}"><h2>${esc(S.prev_title)}</h2><p class="hint">${esc(S.prev_hint)}</p>` +
+    prev.map((p) => `<div class="prevrow"><p><strong>${esc(p.label)}</strong> · ${esc(fmt(S.prev_item, { date: day(p.generated_at), shared: p.shared, of: p.of }))}${p.objective ? `<br>${esc(p.objective)}` : ""}</p>` +
+      `<button class="cta ghost sm reuse" type="button" data-from="${esc(p.key)}">${esc(S.prev_reuse)}</button></div>`).join("") + `<p class="err" id="prev-err" role="alert" hidden></p></div>`;
+}
 
 function genPanelHtml(d, hasCap) {
   const can = d.task && d.task.generatable;
-  if (!can) return `<div class="note">${esc(S.unit_capsule_later)} <button class="linkbtn" id="sess-jump" type="button">${esc(S.sessions_jump)}</button></div>`;
+  if (!can) return `<div class="note">${esc(S.unit_no_content)} <button class="linkbtn" id="sess-jump" type="button">${esc(S.sessions_jump)}</button></div>`;
   const stale = hasCap ? staleOf(d) : null;
-  if (stale) { // the capsule is older than some of its messages: say so, and offer the same regenerate flow (estimate + confirm)
-    return `<div class="stale" role="status"><span class="chip warn">${esc(staleText(stale))}</span><button class="linkbtn" id="stale-see" type="button">${esc(S.stale_view_new)}</button>` +
+  if (stale) { // the capsule is older than some of its messages, or its unit changed: say so, and offer the same regenerate flow (estimate + confirm)
+    const reused = stale.reused_from ? `<span class="chip">${esc(fmt(S.reused_note, { label: stale.reused_from.label }))}</span>` : "";
+    return `<div class="stale" role="status">${stale.new_messages > 0 ? `<span class="chip warn">${esc(staleText(stale))}</span><button class="linkbtn" id="stale-see" type="button">${esc(S.stale_view_new)}</button>` : ""}` +
+      `${stale.changed ? `<span class="chip warn" title="${esc(S.stale_changed_tip)}">${esc(changedText(stale))}</span>` : ""}${reused}` +
       `<button class="cta ai ghost sm" id="gen" type="button">${esc(S.stale_update)}</button><span class="hint">${esc(S.stale_update_hint)}</span></div><div id="genbox" aria-live="polite"></div>`;
   }
   const title = hasCap ? "" : `<h2>${esc(S.no_capsule_title)}</h2><p>${esc(S.no_capsule_text)}</p><p class="note">${esc(S.sessions_no_capsule_hint)} <button class="linkbtn" id="sess-jump" type="button">${esc(S.sessions_jump)}</button></p>`;
@@ -81,6 +94,7 @@ async function renderDetail(key, { animate = false } = {}) {
       <div class="heroact"><button class="cta ghost sm detailmenu" id="unit-menu" type="button" data-menu="${esc(key)}" aria-haspopup="menu" aria-expanded="false">${esc(S.menu_actions)} ▾</button>
       ${cap ? `<button class="cta" id="resume" type="button">${esc(S.resume)}</button>` : ""}</div></div>
     ${relatedDetailHtml(t)}
+    ${cap ? "" : previousHtml(d)}
     ${genPanelHtml(d, !!cap)}
     ${cap ? capsuleHtml(cap) : ""}
     ${sessionsHtml(d, key)}`;
@@ -93,6 +107,18 @@ async function renderDetail(key, { animate = false } = {}) {
   if (resume) resume.addEventListener("click", () => copyBriefing(resume, (cap.capsule || {}).briefing || ""));
   const gen = $("gen");
   if (gen) gen.addEventListener("click", () => startGenerate(key));
+  el.querySelectorAll(".reuse").forEach((b) => b.addEventListener("click", async () => {
+    b.setAttribute("disabled", "");
+    try {
+      await api("/api/capsule/reuse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ from: b.dataset.from, to: key }) });
+      TASKS = (await api("/api/tasks")).tasks;
+      await renderDetail(key, { animate: true });
+    } catch (err) {
+      const box = $("prev-err");
+      if (box) { box.textContent = S.error_prefix + " " + err.message; box.hidden = false; }
+      b.removeAttribute("disabled");
+    }
+  }));
   applyAiGate(); // the generate button and, when Claude Code is missing, the note and "Check again" under it
   el.querySelectorAll(".filelink").forEach((b) => b.addEventListener("click", () => showFileTasks(b.dataset.file, key)));
   bindSessions(d);
@@ -116,11 +142,12 @@ function sessionItem(s, i) {
   const mixed = SESS.markable && s.mixed;
   const chips = `<span class="chip repo">${esc(s.project)}</span>` + (s.branch ? `<span class="chip">${esc(s.branch)}</span>` : "") +
     `<span class="chip">${esc(plural(s.n_prompts, S.sessions_message_one, S.sessions_messages))}</span>` +
+    (s.range ? `<span class="chip" title="${esc(S.range_tip)}">${esc(fmt(S.chip_range, { a: s.range[0], b: s.range[1] }))}</span>` : "") +
     (mixed ? `<span class="chip">${esc(S.sessions_mixed_chip)}</span>` : "") +
     (s.new_messages ? `<span class="chip warn">${esc(fmt(S.sessions_new_chip, { n: s.new_messages }))}</span>` : "");
   return `<div class="sessitem" data-id="${esc(s.id)}" data-mixed="${mixed ? 1 : 0}" data-new="${s.new_messages || 0}">` +
     `<button class="sessrow" type="button" aria-expanded="false" aria-controls="msgs-${i}"><span class="chev" aria-hidden="true">▸</span><code>${esc(s.id.slice(0, 8))}</code><span class="when">${esc(sessionWhen(s))}</span>${chips}</button>` +
-    `<button type="button" class="sessmenu" data-sess="${esc(s.id)}" data-from="${esc(SESS.key)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(fmt(S.menu_label, { name: s.id.slice(0, 8) }))}">⋯</button>` +
+    (s.range ? "" : `<button type="button" class="sessmenu" data-sess="${esc(s.id)}" data-from="${esc(SESS.key)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(fmt(S.menu_label, { name: s.id.slice(0, 8) }))}">⋯</button>`) +
     `<div class="msgs" id="msgs-${i}" role="region" aria-label="${esc(fmt(S.sessions_region_label, { session: s.id.slice(0, 8) }))}" hidden></div></div>`;
 }
 
@@ -129,7 +156,7 @@ function sessionsHtml(d, key) {
   const anyMixed = SESS.markable && d.sessions.some((s) => s.mixed);
   const scopes = [["all", S.sessions_filter_all]];
   if (anyMixed) scopes.push(["mine", fmt(S.sessions_filter_mine, { key })]);
-  if (SESS.stale) scopes.push(["new", fmt(S.sessions_filter_new, { n: SESS.stale.new_messages })]);
+  if (SESS.stale && SESS.stale.new_messages > 0) scopes.push(["new", fmt(S.sessions_filter_new, { n: SESS.stale.new_messages })]);
   const tools = scopes.length > 1 ? `<div class="sesstools"><div class="seg" id="sessscope" role="group" aria-label="${esc(S.sessions_filter_label)}">` +
     scopes.map(([v, label]) => `<button type="button" data-scope="${v}" aria-pressed="${v === "all"}">${esc(label)}</button>`).join("") + `</div></div>` : "";
   return `<section class="block" id="sessions"><h2 tabindex="-1">${esc(S.sessions_heading)} (${d.sessions.length})</h2>` +
@@ -225,13 +252,14 @@ async function startGenerate(key) {
   box.innerHTML = html`<p>${S.estimate_loading}</p>`;
   try {
     const e = await api("/api/estimate?key=" + encodeURIComponent(key));
-    box.innerHTML = html`<p style="margin-top:12px">${fmt(S.estimate_text, { tokens: fmtTokens(e.input_tokens + e.output_tokens), usd: "~" + usd(e.usd), seconds: e.seconds, calls: e.calls, sessions: e.sessions })}</p>
+    const name = unitTitle(TASKS.find((x) => x.key === key) || { key, kind: "key" });
+    box.innerHTML = html`<p style="margin-top:12px">${fmt(e.ranges_known ? S.estimate_text_known : S.estimate_text, { turns: e.turns, tokens: fmtTokens(e.input_tokens + e.output_tokens), usd: "~" + usd(e.usd), seconds: e.seconds, calls: e.calls, sessions: e.sessions })}</p>
       <div class="row"><button class="cta ai" id="ok" type="button">${S.confirm_generate}</button><button class="cta ghost" id="no" type="button">${S.cancel}</button></div>`;
     $("no").addEventListener("click", () => { box.innerHTML = ""; setAiBusy("gen", false); });
     $("ok").addEventListener("click", () => {
       if (!aiOn()) { box.innerHTML = ""; setAiBusy("gen", false); applyAiGate(); return; }
       runAiAction({
-        box, path: "/api/generate", body: { key, confirm: true }, title: fmt(S.progress_generating, { key }),
+        box, path: "/api/generate", body: { key, confirm: true }, title: fmt(S.progress_generating, { key: name }),
         onDone: async (res) => {
           if (location.hash === "#/task/" + encodeURIComponent(key)) { // still looking at this task: show the new capsule
             await renderDetail(key, { animate: true });
