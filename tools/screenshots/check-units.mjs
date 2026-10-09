@@ -90,11 +90,11 @@ await check('sessions without content are folded into ONE group, closed by defau
   await page.goBack();
 });
 
-await check('card menu: Rename, Merge, Move, Hide and a disabled Undo; Esc closes and returns focus; arrows move', async () => {
+await check('card menu: Rename, Merge, Move, Name with AI, Hide and a disabled Undo; Esc closes and returns focus; arrows move', async () => {
   await goHome();
   await openMenu(cardMenu(A));
   const items = await menuItems();
-  assert.deepEqual(items.map((s) => s.replace(/\(.*\)/, '').trim()), ['Rename…', 'Merge with…', 'Move session…', 'Hide', 'Nothing to undo']);
+  assert.deepEqual(items.map((s) => s.replace(/\(.*\)/, '').trim()), ['Rename…', 'Merge with…', 'Move session…', 'Name with AI…', 'Hide', 'Nothing to undo']);
   assert.equal(await page.locator('#unitmenu button:last-child').isDisabled(), true);
   assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Rename…');
   await page.keyboard.press('ArrowDown');
@@ -233,7 +233,7 @@ await check('phone width: no horizontal overflow on the home (cards, group) and 
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'home overflows');
   await openMenu(cardMenu(A));
   await clickMenu('Rename');
-  const box = await page.locator('.udpanel').boundingBox();
+  const box = await page.locator('#unitdlg .udpanel').boundingBox();
   assert.ok(box.x >= 0 && box.x + box.width <= 390, 'dialog fits the screen');
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1280, height: 900 });

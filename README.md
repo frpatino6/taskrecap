@@ -182,11 +182,30 @@ After installing Claude Code, press **Check again** on the page; no restart is n
 
 **No sessions found.** Use Claude Code in a project first, or point to the folder with `--projects-dir`. `npx taskrecap --demo` works without any sessions.
 
+### Organize unsorted sessions with AI (optional, you review every proposal)
+
+Free checks cannot tell tasks apart, so for the *Unsorted* sessions there is an opt-in **✨ Organize with AI** step. It shows an estimate and asks you to confirm before spending anything, then reads only a **short, redacted summary of each session** (a few messages, the edited files; never the whole conversation) and comes back with **proposals**, never changes:
+
+- a clear **title** for a session (also from a single session's **⋯ → Name with AI**),
+- a **group** of sessions that are the same piece of work, and
+- the **cut** of a long session that switches subject into one unit per range of messages.
+
+Every proposal lists its **evidence** (click a citation to read the original message). Nothing is applied until you **Accept** it (or **Edit title** first); **Reject** is remembered, and *Accept all high-confidence* is a single change. Accepted proposals go through the same corrections as everything you do by hand: labelled *AI-organized*, undoable, and your own renames, merges and moves always win. The same sessions are never asked twice, and the result stays saved on your machine.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/organize-proposals-light.png" alt="Proposals from Organize with AI: a group of two sessions with the reason, the sessions that would be joined and clickable evidence, with Accept, Edit title and Reject"></td>
+    <td width="50%"><img src="docs/screenshots/organize-name-light.png" alt="Name with AI on one session: the proposed name next to the current one, with Accept, Edit title and Reject, and the real usage of the call"></td>
+  </tr>
+</table>
+
+How well does it work? We measured it on real sessions with the task keys and branch names **hidden** from the model (19 labelled sessions of one developer; the answer to compare with was the key they had before). Titles were far more informative than the free first-message titles (1.8 vs 0.8 on a 0-2 scale, one rater). Groups were rare and prudent: no false merge in the final run, but it found only 1 of the 48 real same-task pairs. Cuts of long sessions are useful starting points, not exact (1 of 4 proposed boundaries matched the hand-made ones). One pass over 40 sessions cost about US$0.15. Treat it as a way to get names and rough cuts, not as an automatic organizer.
+
 ## Honest limitations
 
 - **Claude Code's session format is not documented** and can change. If a Claude Code update breaks parsing, please open an issue with the version.
 - Tested so far on a small number of real sessions from one developer. Detection quality on other workflows is the biggest unknown, so feedback is very welcome.
-- Sessions with no task key and no feature branch are listed one by one as *Unsorted* units. Grouping them is up to you (merge, move, rename): free text or file similarity did not separate tasks reliably. Capsules for them, and for groups you make, are not available yet.
+- Sessions with no task key and no feature branch are listed one by one as *Unsorted* units. Grouping them is up to you (merge, move, rename) or, optionally, AI proposals you review: free text or file similarity did not separate tasks reliably, and the AI step is conservative about merging and approximate about cuts (see above). Capsules for them, and for groups you make, are not available yet.
 - "Outdated" counts your newer messages in the task's sessions; in a session shared with other tasks only the messages that cite the task key. Updating regenerates the whole capsule (no incremental update yet).
 - The "reverted" and "possibly undone" marks are heuristics; git history is not read.
 - Commits you make in another terminal are not seen (only those that appear in the sessions).
