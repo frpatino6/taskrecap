@@ -116,11 +116,12 @@ function sessionItem(s, i) {
   const mixed = SESS.markable && s.mixed;
   const chips = `<span class="chip repo">${esc(s.project)}</span>` + (s.branch ? `<span class="chip">${esc(s.branch)}</span>` : "") +
     `<span class="chip">${esc(plural(s.n_prompts, S.sessions_message_one, S.sessions_messages))}</span>` +
+    (s.range ? `<span class="chip" title="${esc(S.range_tip)}">${esc(fmt(S.chip_range, { a: s.range[0], b: s.range[1] }))}</span>` : "") +
     (mixed ? `<span class="chip">${esc(S.sessions_mixed_chip)}</span>` : "") +
     (s.new_messages ? `<span class="chip warn">${esc(fmt(S.sessions_new_chip, { n: s.new_messages }))}</span>` : "");
   return `<div class="sessitem" data-id="${esc(s.id)}" data-mixed="${mixed ? 1 : 0}" data-new="${s.new_messages || 0}">` +
     `<button class="sessrow" type="button" aria-expanded="false" aria-controls="msgs-${i}"><span class="chev" aria-hidden="true">▸</span><code>${esc(s.id.slice(0, 8))}</code><span class="when">${esc(sessionWhen(s))}</span>${chips}</button>` +
-    `<button type="button" class="sessmenu" data-sess="${esc(s.id)}" data-from="${esc(SESS.key)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(fmt(S.menu_label, { name: s.id.slice(0, 8) }))}">⋯</button>` +
+    (s.range ? "" : `<button type="button" class="sessmenu" data-sess="${esc(s.id)}" data-from="${esc(SESS.key)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(fmt(S.menu_label, { name: s.id.slice(0, 8) }))}">⋯</button>`) +
     `<div class="msgs" id="msgs-${i}" role="region" aria-label="${esc(fmt(S.sessions_region_label, { session: s.id.slice(0, 8) }))}" hidden></div></div>`;
 }
 

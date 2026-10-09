@@ -40,6 +40,7 @@ async function route() {
     $("loading").textContent = S.loading;
     TASKS = (await api("/api/tasks")).tasks;
     await refreshHidden();
+    await refreshOrganize();
     $("loading").hidden = true;
     bindViewControls();
     $("q").addEventListener("input", onSearchInput);

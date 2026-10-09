@@ -14,7 +14,7 @@ import { redact } from './sessions.js';
 import { MAX_LABEL, cutTitle, meaningfulText, stripTags } from './units.js';
 import { sumMetas } from './usage.js';
 
-export const PROMPT_VERSION = 'organize-1';
+export const PROMPT_VERSION = 'organize-2'; // measured on real sessions with the task keys hidden (see the maintainers' notes); bump it to invalidate every cached run
 export const STORE_VERSION = 1;
 export const SPLIT_MIN_MESSAGES = 14; // a session needs this many real messages to be offered for cutting
 export const MAX_SHOWN_TURNS = 40; // messages of a long session that the model gets to see
@@ -101,10 +101,12 @@ export function buildPrompt(batch, { titlesOnly = false, language = 'English' } 
       '1. "titles": a clear title (at most 70 characters) for each session, saying what the work was.\n' +
       '2. "groups": sessions that are the SAME piece of work (same feature, bug, ticket, file or goal). The evidence must be message numbers ' +
       'shown below, in at least TWO of the group\'s sessions, that show it. The same repo, the same folder or being close in time is NOT enough. ' +
-      'If in doubt, do NOT group.\n' +
-      '3. "splits": only for a session marked (long) that clearly switches between different pieces of work. Give 2 or more NON-overlapping ' +
-      'inclusive ranges of message numbers (start, end), a title per range and at least one evidence message number INSIDE each range.\n' +
-      'Use ONLY session ids and message numbers that appear below; never invent any. Fewer, safer proposals are better: an empty list is a good answer.\n' +
+      'A whole project or product ("work on the app", "the tool") is NOT one piece of work: two sessions that each work on a DIFFERENT feature, bug ' +
+      'or task of the same project must NOT be grouped. If in doubt, do NOT group.\n' +
+      '3. "splits": go through EVERY session marked (long) and decide whether its messages change subject (a different feature, bug or goal) one or more times. ' +
+      'If they do, propose the split: 2 or more NON-overlapping inclusive ranges of message numbers (start, end), a title per range and at least one ' +
+      'evidence message number INSIDE each range. Cut where the subject changes, using the message numbers shown below. A session about one job gets no split.\n' +
+      'Use ONLY session ids and message numbers that appear below; never invent any. Fewer, safer group proposals are better.\n' +
       `Reply ONLY with JSON in this shape:\n${SCHEMA_FULL}\n\n`;
   return head + rules + body;
 }
@@ -253,11 +255,13 @@ export class OrganizeStore {
 
   /**
    * Store the proposals of a run over `analysed` (a Set of full session ids). Older PENDING proposals about those sessions are
-   * replaced; an accepted or rejected one keeps its state (a rejected proposal never comes back).
+   * replaced; an accepted or rejected one keeps its state (a rejected proposal never comes back) unless `revive` lists it: the
+   * user asked for exactly that again ("Name with AI" on one session).
    */
-  upsert(list, analysed) {
+  upsert(list, analysed, { revive = null } = {}) {
     const props = this.load().proposals;
     for (const [id, p] of Object.entries(props)) if (p.status === 'pending' && p.sessions.some((s) => analysed.has(s))) delete props[id];
+    for (const p of list) if (revive && revive.has(p.id) && props[p.id] && props[p.id].status === 'rejected') delete props[p.id]; // asked for again on purpose
     const now = new Date().toISOString();
     for (const p of list) if (!props[p.id]) props[p.id] = { ...p, status: 'pending', created_at: now };
     this.save();
@@ -376,7 +380,8 @@ export class Organizer {
       for (const pr of unique) log(report, 'organize_proposal', { kind: pr.type, title: clip(pr.title || pr.reason || '', 100) });
       if (signal && signal.aborted) throw Object.assign(new Error('Cancelled'), { name: 'AbortError' });
       stage(report, 'org_save', 'running');
-      this.store.upsert(unique, new Set(p.list.map((e) => e.s.id)));
+      const asked = titlesOnly && Array.isArray(sessions) && sessions.length ? new Set(unique.filter((x) => x.type === 'title').map((x) => x.id)) : null;
+      this.store.upsert(unique, new Set(p.list.map((e) => e.s.id)), { revive: asked });
       this.store.recordRun(p.sig, { sessions: p.list.length, proposals: unique.length, titles_only: titlesOnly, model: this.model(), ...pickUsage(sumMetas(metas)) });
       this.store.save();
       stage(report, 'org_save', 'done', 'organize_save_done', { proposals: unique.length });

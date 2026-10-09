@@ -234,6 +234,17 @@ test('"Name with AI" asks for a title only, for one session', async () => {
 });
 
 // ---------- the lifecycle of a proposal ----------
+test('asking "Name with AI" for a session again brings back a title the user rejected before (an explicit request wins)', async () => {
+  const fx = fixture();
+  const app = makeApp(fx, async () => [JSON.stringify({ titles: [{ session: 'S3CCCCCC', title: 'CI failure hunt' }] }), META]);
+  const full = app.index.sessions().find((s) => s.id.startsWith('S3CCCCCC')).id;
+  const first = await app.organize({ sessions: [full], titlesOnly: true });
+  app.rejectProposal(first.proposals[0].id);
+  assert.equal(app.organizeProposals().proposals.length, 0);
+  const second = await app.organize({ sessions: [full], titlesOnly: true, force: true });
+  assert.equal(second.proposals.length, 1, 'the user asked again: the rejected title is offered again');
+});
+
 test('accepting a title renames the unit through the corrections (source ai) and Undo brings the proposal back', async () => {
   const fx = fixture();
   const app = makeApp(fx, fakeOrganizer([]));
@@ -489,4 +500,26 @@ test('digests are cached per file version and follow the file when it grows', ()
   const grown = sessionDigest(e.s, e.short, app.keyRegex);
   assert.notEqual(grown, e.digest);
   assert.equal(grown.turns, e.digest.turns + 1);
+});
+
+// ---------- the demo ships sample proposals ----------
+test('the demo ships sample proposals that apply to its own sessions and cost nothing to show', async () => {
+  const { DEMO_DIR } = await import('../src/app.js');
+  const { seedDemoCache } = await import('../src/cli.js');
+  const cache = tmpDir();
+  seedDemoCache(path.join(DEMO_DIR, 'capsules'), cache);
+  assert.ok(fs.existsSync(path.join(cache, '.index', 'organize.json')), 'seeding copies the .index folder too');
+  const app = new App({ projectsDir: path.join(DEMO_DIR, 'sessions'), cacheDir: cache, demo: true, ask: async () => { throw new Error('showing the samples never calls the model'); } });
+  const view = app.organizeProposals();
+  assert.deepEqual(view.proposals.map((p) => p.type).sort(), ['group', 'split', 'title', 'title', 'title']);
+  assert.ok(app.organizeEstimate({}).cached, 'the demo sessions were "already analysed"');
+  const group = view.proposals.find((p) => p.type === 'group');
+  assert.ok(group.evidence.every((e) => e.quote), 'every piece of evidence points at a real message');
+  const split = view.proposals.find((p) => p.type === 'split');
+  assert.ok(split.parts.every((x) => x.evidence.every((e) => e.quote)));
+  for (const p of view.proposals) {
+    try { assert.ok(app.acceptProposal(p.id).ok, p.type); } catch (e) { assert.match(e.message, /not available|no longer applies/, `${p.type}: ${e.message}`); } // titles of sessions that a group/cut already took no longer apply
+  }
+  assert.ok(app.listTasks().some((t) => t.ai && t.range), 'the cut was applied');
+  assert.ok(app.listTasks().some((t) => t.ai && t.kind === 'user'), 'the group was applied');
 });

@@ -97,5 +97,6 @@ function renderHome() {
   $("capfilter").hidden = !VZ.noCapsule;
   $("timeline").hidden = !timeline || !!(HITS && !real.length);
   renderCoverage();
+  if (typeof renderOrganize === "function") renderOrganize();
   return timeline && !(HITS && !real.length) ? loadTimeline() : undefined;
 }
