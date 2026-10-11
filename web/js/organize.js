@@ -69,7 +69,7 @@ function bindProposals(root, done) {
     const all = e.target.closest(".orgall");
     if (all) {
       all.disabled = true;
-      try { const res = await orgPost("accept-all", { confidence: "high" }); await done(res, fmt(S.org_accepted_all_msg, { n: res.accepted })); } catch (err) { all.disabled = false; toast(err.message, null); }
+      try { const res = await orgPost("accept-all", { confidence: "high" }); await done(res, fmt(S.org_accepted_all_msg, { n: res.accepted }) + (res.skipped ? " " + fmt(S.org_skipped_renamed_all, { n: res.skipped }) : "")); } catch (err) { all.disabled = false; toast(err.message, null); }
       return;
     }
     const art = e.target.closest(".orgprop");
@@ -90,7 +90,7 @@ function bindProposals(root, done) {
       if (accept) {
         const input = art.querySelector(".orgedit input"), edited = input && !art.querySelector(".orgedit").hidden ? input.value : undefined;
         const res = await orgPost("accept", { id, title: edited });
-        await done(res, S.org_accepted_msg);
+        await done(res, res.skipped ? S.org_skipped_renamed : S.org_accepted_msg);
       } else {
         await orgPost("reject", { id });
         await done(null, S.org_rejected_msg);

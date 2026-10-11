@@ -69,6 +69,25 @@ test.describe('organize with AI: running it', () => {
     await expect(home.card(key)).toContainText('My own name');
   });
 
+  test('should keep a name the user set after the proposal was made when the title is accepted @regression', async () => {
+    const key = 'session:d4e5f6a7';
+    await org.openEstimate();
+    await org.confirm.click();
+    await expect(org.dialog).toBeHidden({ timeout: 15_000 });
+    await home.openCardMenu(key);
+    await home.menu.choose('Rename');
+    await home.dialog.name.fill('My own name');
+    await home.dialog.confirm();
+    await org.openProposals();
+    const title = org.proposal('title', 'Named by the stand-in model: d4e5f6a7');
+    await expect(title).toHaveCount(1);
+    await title.locator('.orgaccept').click();
+    await expect(home.toast.root).toContainText('your name was kept');
+    await expect(home.card(key)).toContainText('My own name');
+    await expect(home.card(key)).not.toContainText('Named by the stand-in model');
+    await expect(org.proposal('title', 'Named by the stand-in model: d4e5f6a7')).toHaveCount(0);
+  });
+
   test('should stop a running organize on Cancel and leave the proposals untouched @regression', async ({ freshPage }) => {
     const before = (await (await freshPage.request.get('/api/organize/proposals')).json()).proposals.length;
     await org.openEstimate();

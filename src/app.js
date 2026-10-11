@@ -556,12 +556,14 @@ export class App {
 
   acceptProposal(id, edits = {}) {
     const batch = this.organizer.accept(id, edits);
+    if (batch && batch.skipped) return { ok: true, undo: null, skipped: batch.skipped }; // the user named it since: nothing changed
     return this.changeResult(batch);
   }
 
   acceptProposals(confidence = 'high') {
-    const { batch, accepted } = this.organizer.acceptAll({ confidence });
-    return { ...this.changeResult(batch), accepted };
+    const { batch, accepted, skipped } = this.organizer.acceptAll({ confidence });
+    if (!batch) return { ok: true, undo: null, accepted, skipped };
+    return { ...this.changeResult(batch), accepted, skipped };
   }
 
   rejectProposal(id) {
