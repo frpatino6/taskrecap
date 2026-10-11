@@ -11,7 +11,8 @@ npx playwright install chromium  # only if Chromium of that version is missing
 npm test                         # everything
 npm run test:smoke               # only @smoke
 npm run test:headed              # watch it
-npx playwright test specs/home   # one area
+npx playwright test specs/home   # one area (any folder under specs/)
+npx playwright test specs/search --repeat-each=3   # hunt flakiness in one area
 npm run report                   # open the HTML report (.output/report)
 ```
 
@@ -21,18 +22,47 @@ The root `npm test` runs only `test/*.test.js` (node:test unit tests); e2e specs
 
 ```
 fixtures/app.js        the `test` every spec imports (servers, options)
-fixtures/presets.js    server variations: default, noClaude, fakeClaude
-pages/                 page objects: home.page.js, task.page.js, evidence.panel.js, components.js (menu, dialog, toast)
-specs/smoke|home|tasks|units/   specs grouped by app area
+fixtures/presets.js    server variations: default, noClaude, fakeClaude, emptySessions (no --demo, empty projects dir), corruptedStore
+pages/                 page objects: home, task, evidence.panel, organize.panel, timeline, components (menu, dialog, toast)
+specs/<area>/         specs grouped by app area (see the inventory below)
 .output/               results, traces, HTML report (git-ignored)
 ```
+
+## Inventory by area
+
+| Folder | What it covers | Server preset |
+|---|---|---|
+| `smoke/` | the app starts, home, a task, evidence | default |
+| `home/` | cards, filters, unsorted group, free search on the home | default |
+| `tasks/` | capsule content, outdated notice, unit kinds | default |
+| `units/` | corrections: rename, merge, move, split, hide, undo | default (`freshPage`) |
+| `organize-ai/` | proposals review (accept, accept all, reject, edit title, cut), running Organize with the stand-in claude, "Name with AI", no claude | default / `fakeClaude` / `noClaude` |
+| `capsules/` | generate (estimate, confirm, progress, cancel, ready), key unit vs session unit, outdated + "Reuse that capsule", claude missing | `fakeClaude` / `noClaude` |
+| `search/` | free search (key, title, capsule, messages, cap "+N more", no results), AI search flow | default / `fakeClaude` |
+| `evidence/` | evidence panel: messages, markdown, file links, "Files Claude created", copy path, open folder, resume copy, close | default |
+| `files/` | file to tasks lookup from the home and from a task | default |
+| `timeline/` | lanes (newest first, 12 + more), filters, tooltips, marks, coverage ring, hidden and empty sessions | default |
+| `states/` | empty sessions dir, corrupted stores, unknown task/route, API errors | `emptySessions` / `corruptedStore` / default |
+| `api/` | HTTP contracts: `/api/search` shape, `/api/reveal` 400, foreign Origin 403, non-JSON 415 | default |
+
+`test.fixme` marks scenarios that cannot be asserted reliably (with the reason in the test body): the "Indexing messages..." note (the demo index is ready in milliseconds).
+
+## Debugging a failure
+
+```bash
+npx playwright test specs/search --trace on          # record a trace for every test of one area
+npx playwright show-trace .output/results/<test-folder>/trace.zip
+npx playwright test -g "should open the evidence" --headed --debug   # step through one test
+```
+
+Failures also leave a screenshot and, on retry (CI), a trace under `.output/results/`; `npm run report` opens them in the HTML report.
 
 ## Fixtures and isolation
 
 - `server` (worker): a real `node bin/taskrecap.js --demo --no-open --port <free port>` with its own temporary `TASKRECAP_HOME`; killed on teardown. `baseURL` points at it, so `page.goto('/#/')` works.
 - Playwright starts one worker per parallel lane, so each worker has its own server. Within a worker, tests of a file share that server.
 - Tests that **change state** (rename, merge, hide, move, split, undo) must use `freshPage` (test-scoped: a brand new server and page). Read-only tests use `page`.
-- `serverConfig` (worker option): `test.use({ serverConfig: presets.noClaude })` starts the server with other env/args (no `claude`, `claude` -> `tools/screenshots/fake-claude.mjs`). Add new variations in `fixtures/presets.js`.
+- `serverConfig` (worker option): `test.use({ serverConfig: presets.noClaude })` starts the server with other env/args (no `claude`, `claude` -> `tools/screenshots/fake-claude.mjs`). A preset may also set `demo: false` and a `prepare(root)` that seeds files in the temporary folder and returns extra CLI args (`emptySessions`, `corruptedStore`). `test.use({ serverConfig })` must be at the top level of a spec file (one preset per file). Add new variations in `fixtures/presets.js`.
 - The home view is forced to `cards` (the timeline tests click `#view-timeline`).
 
 ## Conventions

@@ -21,7 +21,8 @@ const freePort = () => new Promise((resolve, reject) => {
 async function startServer(config) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'tr-e2e-'));
   const port = await freePort();
-  const child = spawn(process.execPath, [path.join(ROOT, 'bin', 'taskrecap.js'), '--demo', '--no-open', '--port', String(port), ...(config.args || [])], {
+  const extra = config.prepare ? config.prepare(home) || [] : []; // a preset may seed files in the temporary folder and add arguments
+  const child = spawn(process.execPath, [path.join(ROOT, 'bin', 'taskrecap.js'), ...(config.demo === false ? [] : ['--demo']), '--no-open', '--port', String(port), ...(config.args || []), ...extra], {
     cwd: ROOT,
     env: { ...process.env, TZ: 'UTC', TASKRECAP_HOME: path.join(home, 'home'), ...(config.env || {}) },
     stdio: ['ignore', 'pipe', 'pipe'],
