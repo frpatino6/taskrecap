@@ -141,6 +141,7 @@ async function cmdUi(opts, out) {
     return 1;
   }
   const { server, url } = await startServer(app, opts.port);
+  app.startIndexing(); // message index: built in the background, the page shows its progress
   app.aiStatus().catch(() => {}); // warm the Claude Code check so the page does not wait for it
   out.log(`taskrecap running at ${url}  (Ctrl+C to stop)`);
   out.log('Normal mode is free and local. Actions marked "AI" show an estimate before using Claude.');

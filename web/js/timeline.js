@@ -194,14 +194,17 @@ function onSearchInput() {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(async () => {
     const q = $("q").value.trim();
-    if (!q) { HITS = null; SCOPE = null; renderHome(); return; }
+    if (!q) { HITS = null; SCOPE = null; MSGS = []; MSGINDEX = null; renderHome(); return; }
     try {
       const r = await api("/api/search?q=" + encodeURIComponent(q));
       if ($("q").value.trim() !== q) return; // a newer query is already running
       HITS = new Map((r.hits || []).map((h) => [h.key, h]));
       SCOPE = r.searched || null;
-    } catch (e) { HITS = null; SCOPE = null; }
+      MSGS = r.messages || [];
+      MSGINDEX = r.index || null;
+    } catch (e) { HITS = null; SCOPE = null; MSGS = []; MSGINDEX = null; }
     renderHome();
+    if (HITS && MSGINDEX && MSGINDEX.state === "building") searchTimer = setTimeout(onSearchInput, 1500); // still indexing: look again so the note counts and hits appear
   }, 150);
 }
 

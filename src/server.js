@@ -188,7 +188,11 @@ async function handleGet(app, url, route, res) {
     const detail = app.taskDetail(decodeURIComponent(m[1]));
     return detail ? send(res, 200, detail) : sendError(res, 404, 'Unknown task');
   }
-  if (route === '/api/search') return send(res, 200, { hits: app.search(url.searchParams.get('q') || ''), searched: app.searchCoverage() });
+  if (route === '/api/search') {
+    const q = url.searchParams.get('q') || '';
+    const found = await app.searchMessages(q); // never throws: a broken message index leaves the task search as it was
+    return send(res, 200, { hits: app.search(q), searched: app.searchCoverage(), messages: found.messages, index: found.index });
+  }
   if (route === '/api/files') return send(res, 200, app.findFiles(url.searchParams.get('q') || ''));
   if (route === '/api/files/tasks') return send(res, 200, app.fileTasks(url.searchParams.get('path') || ''));
   if (route === '/api/messages') {

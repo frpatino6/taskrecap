@@ -10,3 +10,9 @@ capsules_auto/
 # a real screenshot is added by the maintainer after checking it shows no private data
 # maintainer-only screenshot tooling: its own node_modules and Chromium never ship (see tools/screenshots)
 tools/screenshots/node_modules/
+
+# local tooling (skills, code index): not part of the project
+.agents/
+.claude/
+.codegraph/
+skills-lock.json

@@ -111,7 +111,7 @@ document.addEventListener("click", (e) => {
   if (m) { evMadeAction(m); return; }
   const f = e.target.closest && e.target.closest("#ev-panel button.filelink");
   if (f) { openPromptFile(f); return; }
-  const b = e.target.closest && e.target.closest("button.cite, button.msg");
+  const b = e.target.closest && e.target.closest("button.cite, button.msg, button.msghit");
   if (b) openEvidence(b);
 });
 $("ev-backdrop").addEventListener("click", closeEvidence);
