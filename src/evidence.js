@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { loadRichTurns } from './capsule.js';
+import { sessionFileList } from './reveal.js';
 import { redact } from './sessions.js';
 import { basename } from './util.js';
 
@@ -97,7 +98,7 @@ export function readEvidence(file, turn, { context = DEFAULT_CONTEXT, ranges = n
     session: {
       id8: fileId.slice(0, 8), id: fileId, resume: /^[\w-]+$/.test(fileId) ? `claude --resume ${fileId}` : null,
       project: basename(first.cwd) || basename(path.dirname(file)), cwd: homeShort(first.cwd), branch: first.branch || '',
-      date: turns[0].ts || null, turns_total: turns.length,
+      date: turns[0].ts || null, turns_total: turns.length, made: sessionFileList(turns),
     },
     turn: n, turns: shown, confidence, warning,
   };
