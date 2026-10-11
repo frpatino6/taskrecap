@@ -1,0 +1,15 @@
+{
+  "name": "taskrecap-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests (Playwright Test, Chromium, desktop, English UI). Not part of the published package.",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report .output/report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

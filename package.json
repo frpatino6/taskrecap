@@ -20,7 +20,7 @@
   "scripts": {
     "start": "node bin/taskrecap.js",
     "demo": "node bin/taskrecap.js --demo",
-    "test": "node --test"
+    "test": "node --test test/*.js"
   },
   "keywords": [
     "claude-code",
