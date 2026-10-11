@@ -17,6 +17,7 @@ import { CapsuleSearch } from './search.js';
 import { redact } from './sessions.js';
 import { CapsuleStore, SessionIndex, capsuleDrift, capsuleStaleness, isGeneratable, planTask, unitMeta } from './tasks.js';
 import { pageMessages } from './messages.js';
+import { TextIndex } from './textindex.js';
 import { UsageTracker, sumMetas } from './usage.js';
 import { MAX_LABEL, Overrides, isUserKey } from './units.js';
 import { UNASSIGNED } from './sessions.js';
@@ -28,6 +29,9 @@ export const DEMO_DIR = path.join(ROOT, 'demo');
 
 const SEARCH_MAX_TASKS = 300; // most recent tasks sent to the AI search
 const SEARCH_LINE_CHARS = 420;
+const MESSAGE_HITS = 20; // message hits the page shows
+const MESSAGE_PER_SESSION = 3; // ... at most this many from one session (the rest is only counted)
+const MESSAGE_POOL = 100; // best matches read before grouping
 const SEARCH_OUTPUT_TOKENS = 500;
 
 /** UI strings live in web/strings.<lang>.json (English is the fallback), so translating = adding one file. */
@@ -91,6 +95,8 @@ export class App {
     this.index = new SessionIndex(projectsDir, keyRegex, { overrides: this.overrides, genericBranches: keyConfig ? keyConfig.ignoreBranches : null });
     this.store = new CapsuleStore(cacheDir);
     this.capsuleSearch = new CapsuleSearch(this.store);
+    this.textIndex = new TextIndex(projectsDir, cacheDir); // words of the messages: references only, built in the background
+    this.indexStatus = { state: 'idle', done: 0, total: 0 };
     this.fileIndex = new FileIndex(this.index, this.store, path.join(cacheDir, '.index', 'files.json')); // not a capsule: all() only reads <key>.json
     this.strings = loadStrings(lang);
     this.usage = new UsageTracker(usageFile);
@@ -317,6 +323,71 @@ export class App {
    */
   search(query) {
     return this.capsuleSearch.search(query, this.listTasks());
+  }
+
+  /**
+   * Starts building the message index in the background (once; chunked, it yields to the event loop). Never throws: a failure
+   * only turns the status to 'error' (logged once) and the normal search keeps working. -> a promise that always resolves
+   */
+  startIndexing() {
+    if (this.buildPromise) return this.buildPromise;
+    this.indexStatus = { state: 'building', done: 0, total: 0 };
+    this.buildPromise = this.textIndex.update({ onProgress: (p) => { this.indexStatus = { state: 'building', done: p.done, total: p.total }; } })
+      .then(() => { this.indexStatus = { state: 'ready', done: this.indexStatus.total, total: this.indexStatus.total }; })
+      .catch((e) => this.indexFailed(e));
+    return this.buildPromise;
+  }
+
+  indexFailed(e) {
+    if (this.indexStatus.state !== 'error') process.stderr.write(`taskrecap: message index unavailable: ${e && e.message}\n`);
+    this.indexStatus = { state: 'error', done: 0, total: 0 };
+  }
+
+  /**
+   * Free: the messages whose text holds every word of `query`, grouped (at most 3 per session; `more` counts the rest) and tied to the
+   * unit that holds the session. A cheap update() first picks up the messages written since (nothing is read when nothing changed).
+   * -> {messages: [{session, id8, turn, role, ts, snippet, project, key, label, kind, more}], index: {state, done, total}}; never throws
+   */
+  async searchMessages(query) {
+    const q = String(query || '').trim();
+    const status = () => ({ ...this.indexStatus });
+    if (!q) return { messages: [], index: status() };
+    try {
+      if (this.indexStatus.state === 'idle') await this.startIndexing(); // nobody started it: the first search does
+      else if (this.indexStatus.state === 'ready') {
+        this.refreshing = this.refreshing || this.textIndex.update().finally(() => { this.refreshing = null; }); // searches in a row share one update
+        await this.refreshing;
+      }
+      if (this.indexStatus.state === 'error') return { messages: [], index: status() };
+      return { messages: this.groupMessageHits(this.textIndex.search(q, { limit: MESSAGE_POOL })), index: status() };
+    } catch (e) {
+      this.indexFailed(e);
+      return { messages: [], index: status() };
+    }
+  }
+
+  groupMessageHits(hits) {
+    const owner = new Map(); // session id -> {key, label, kind, project}
+    try {
+      const { units } = this.index.unitMap();
+      for (const u of units.values()) for (const [v] of u.members) if (!owner.has(v.id)) owner.set(v.id, { key: u.key, label: u.label || u.key, kind: u.source || 'key', project: v.project || '' });
+      for (const s of this.index.sessions()) if (owner.has(s.id)) owner.get(s.id).project = owner.get(s.id).project || s.project || '';
+    } catch { /* the hits are still useful without their unit */ }
+    const shown = new Map(); // session -> hits shown
+    const extra = new Map();
+    const out = [];
+    for (const h of hits) {
+      const n = shown.get(h.session) || 0;
+      if (n >= MESSAGE_PER_SESSION || out.length >= MESSAGE_HITS) { extra.set(h.session, (extra.get(h.session) || 0) + 1); continue; }
+      shown.set(h.session, n + 1);
+      const o = owner.get(h.session) || { key: '', label: '', kind: '', project: '' };
+      out.push({ session: h.session, id8: h.session.slice(0, 8), turn: h.turn, role: h.role, ts: h.ts, snippet: h.snippet, project: o.project, key: o.key, label: o.label, kind: o.kind, more: 0 });
+    }
+    for (let i = out.length - 1; i >= 0; i--) { // the count of what was left out goes on the last shown hit of each session
+      const e = extra.get(out[i].session);
+      if (e) { out[i].more = e; extra.delete(out[i].session); }
+    }
+    return out;
   }
 
   /** What the free search can look inside: tasks with a capsule vs tasks searched only by key, repos and first prompt. */
