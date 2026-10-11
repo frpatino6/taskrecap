@@ -127,6 +127,19 @@ await check('search inside capsules finds the words of a unit capsule; the files
   assert.deepEqual(files.tasks.map((t) => [t.key, t.approximate]), [[GROUP_READY, false]]);
 });
 
+await check('search finds a word that is only inside a message: "In messages" section, a click opens that message in the evidence panel', async () => {
+  await goHome();
+  await page.fill('#q', 'tombstone');
+  await page.waitForSelector('#msghits .msghit mark');
+  assert.match(await page.locator('#msghits h2').innerText(), /In messages/);
+  assert.equal(await page.locator('#nonewrap').isHidden(), true, 'a message hit is a result: no "no results" text');
+  await page.locator('#msghits .msghit').first().click();
+  await page.waitForSelector('#evidence:not([hidden]) .evturn[data-cited="1"]');
+  assert.match(await page.locator('#ev-panel .evturn[data-cited="1"]').innerText(), /tombstone/);
+  await page.keyboard.press('Escape');
+  await page.fill('#q', '');
+});
+
 await check('timeline view: units without a key have lanes with the capsule mark', async () => {
   await goHome('timeline');
   await page.click('#vz-more'); // the demo shows its 12 newest lanes first

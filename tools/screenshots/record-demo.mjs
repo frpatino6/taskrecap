@@ -110,7 +110,22 @@ try {
   await pause(500);
   await cite.click();
   await page.waitForSelector('#evidence:not([hidden]) .evturn.cited', { timeout: 8000 });
-  await pause(3000);
+  await pause(2600); // the cited message: prompt and reply rendered as markdown, file paths as links (known solid, unknown dotted)
+
+  await page.locator('#evidence .evturn.cited').evaluate((el) => el.scrollIntoView({ behavior: 'smooth', block: 'end' })); // Claude's reply, also markdown
+  await pause(2400);
+
+  // 4b. Scroll the panel to the files Claude created, with Open folder / Copy path (demo mode never opens a real folder)
+  const made = page.locator('#evidence .evmade');
+  await made.evaluate((el) => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  await pause(1400);
+  const openBtn = page.locator('#evidence .evmade button[data-act="reveal"]').first();
+  await glide(openBtn);
+  await pause(600);
+  await openBtn.click();
+  await pause(2000);
+  await page.locator('#evidence .evturn.cited').evaluate((el) => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  await pause(1200);
 
   // 5. Copy the command that resumes that exact conversation
   const copy = page.locator('#ev-copy');

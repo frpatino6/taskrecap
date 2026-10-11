@@ -250,6 +250,11 @@ table.tl2 td:nth-child(2) { max-width: 18ch; overflow: hidden; text-overflow: el
 mark { background: var(--warn-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
 .hitwhy { display: block; font-size: 13px; color: var(--muted); }
 .hitwhy b { color: var(--text); }
+.msghits { margin-top: 28px; }
+.msghits h2 { font-size: 18px; margin: 0 0 8px; }
+.msglist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.msghit { display: grid; gap: 4px; width: 100%; text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+.msghit:hover, .msghit:focus-visible { border-color: var(--accent); }
 .scope { max-width: none; margin: 10px 0 0; }
 .nonehint { max-width: 640px; }
 button.filelink { font: .86em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); color: var(--accent); border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; min-height: 24px; text-align: left; word-break: break-word; }

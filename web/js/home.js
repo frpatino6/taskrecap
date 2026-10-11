@@ -44,10 +44,32 @@ function hitHtml(h) {
     `<span class="excerpt">${tr[0] ? "…" : ""}${highlighted(h.excerpt, h.highlights)}${tr[1] ? "…" : ""}</span>`;
 }
 
+let MSGS = []; // message hits of the free search (text inside the messages), best match first
+let MSGINDEX = null; // state of the message index: {state: building|ready|error, done, total}
+
 function scopeText(c) {
   if (!c) return "";
-  if (!c.capsules) return S.search_scope_none;
-  return c.other_tasks ? fmt(S.search_scope, { capsules: c.capsules, others: c.other_tasks }) : fmt(S.search_scope_all, { capsules: c.capsules });
+  const msgs = " " + S.search_scope_messages;
+  if (!c.capsules) return S.search_scope_none + msgs;
+  return (c.other_tasks ? fmt(S.search_scope, { capsules: c.capsules, others: c.other_tasks }) : fmt(S.search_scope_all, { capsules: c.capsules })) + msgs;
+}
+
+/** One message hit: who wrote it, when, in which task, and the highlighted words; a click opens that message in the evidence panel. */
+function msgHitHtml(m) {
+  const t = TASKS.find((x) => x.key === m.key);
+  const label = t ? unitTitle(t) : m.label || m.project || m.id8;
+  const tr = (m.snippet && m.snippet.truncated) || [false, false];
+  return `<li><button class="msghit" type="button" data-session="${esc(m.session)}" data-turn="${esc(m.turn)}">` +
+    `<span class="hitwhy"><b>${esc(m.role === "user" ? S.evidence_you : S.evidence_claude)}</b>${m.ts ? " · " + esc(day(m.ts)) : ""} · ${esc(label)}</span>` +
+    `<span class="excerpt">${tr[0] ? "…" : ""}${highlighted(m.snippet.excerpt, m.snippet.highlights)}${tr[1] ? "…" : ""}</span>` +
+    (m.more > 0 ? `<span class="hitwhy">${esc(fmt(S.msg_more, { n: m.more }))}</span>` : "") + `</button></li>`;
+}
+
+function renderMessages() {
+  const box = $("msghits"), indexing = MSGINDEX && MSGINDEX.state === "building";
+  box.hidden = !HITS || (!MSGS.length && !indexing);
+  if (box.hidden) { box.innerHTML = ""; return; }
+  box.innerHTML = html`<h2 id="msg-title">${S.msg_title}</h2>${indexing ? html`<p class="note" role="status">${fmt(S.msg_indexing, { done: MSGINDEX.done, total: MSGINDEX.total })}</p>` : ""}${MSGS.length ? html`<ul class="msglist">${raw(MSGS.map(msgHitHtml).join(""))}</ul>` : ""}`;
 }
 
 function bindCards(root) {
@@ -88,8 +110,10 @@ function renderHome() {
   const timeline = VIEW === "timeline" && TASKS.length > 0;
   $("grid").innerHTML = timeline ? "" : real.map((t) => card(t, HITS ? { hit: HITS.get(t.key) } : null)).join("");
   $("none").textContent = TASKS.length ? S.no_results : S.no_sessions;
-  $("nonewrap").hidden = timeline ? !(HITS && !real.length) : real.length > 0;
-  $("none-extra").hidden = !(HITS && TASKS.length && !real.length); // free search found nothing: suggest AI search (never run it for the user)
+  const noMsgs = !MSGS.length && !(MSGINDEX && MSGINDEX.state === "building"); // messages found (or still being searched) keep "no results" away
+  $("nonewrap").hidden = (timeline ? !(HITS && !real.length) : real.length > 0) || !noMsgs;
+  $("none-extra").hidden = !(HITS && TASKS.length && !real.length);
+  renderMessages(); // free search found nothing: suggest AI search (never run it for the user)
   $("search-scope").textContent = HITS ? scopeText(SCOPE) : "";
   $("search-scope").hidden = !HITS;
   bindCards($("grid"));
