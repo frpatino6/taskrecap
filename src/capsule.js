@@ -40,7 +40,7 @@ export function loadRichTurns(file, keyRegex = DEFAULT_KEY_REGEX) {
       const txt = userText(d.message);
       if (txt) {
         turns.push({
-          ts: d.timestamp, text: txt, branch: d.gitBranch || '', cwd: d.cwd || '', files: [], assistant: [], commands: [],
+          ts: d.timestamp, text: txt, branch: d.gitBranch || '', cwd: d.cwd || '', files: [], written: [], assistant: [], commands: [],
           noise: isNoise(txt), compaction: txt.startsWith('This session is being continued'),
         });
       }
@@ -53,7 +53,10 @@ export function loadRichTurns(file, keyRegex = DEFAULT_KEY_REGEX) {
           last.assistant.push(b.text.trim());
         } else if (b.type === 'tool_use') {
           const inp = b.input || {};
-          if (inp.file_path && EDIT_TOOLS.includes(b.name)) last.files.push(inp.file_path);
+          if (inp.file_path && EDIT_TOOLS.includes(b.name)) {
+            last.files.push(inp.file_path);
+            if (b.name === 'Write') last.written.push(inp.file_path);
+          }
           else if (b.name === 'Bash' && inp.command) last.commands.push(inp.command);
         }
       }

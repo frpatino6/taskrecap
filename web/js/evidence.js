@@ -1,16 +1,41 @@
 "use strict";
 // ---------- evidence panel: the original messages behind a citation (free, local) ----------
-let evOpener = null, evSeq = 0;
+let evOpener = null, evSeq = 0, evSession = "", evMade = [];
 const evTime = (ts) => (ts ? new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
 
 function evTurnHtml(t) {
-  const user = t.user ? `<p class="evtext">${esc(t.user)}</p>` : `<p class="evtext muted">${esc(S.evidence_automatic)}</p>`;
-  const reply = t.assistant ? `<span class="evrole">${esc(S.evidence_claude)}</span><p class="evtext">${esc(t.assistant)}</p>` : "";
+  const res = fileResolver(PROMPT_FILES);
+  const user = t.user ? `<div class="evtext md">${renderMarkdown(t.user, res)}</div>` : `<p class="evtext muted">${esc(S.evidence_automatic)}</p>`;
+  const reply = t.assistant ? `<span class="evrole">${esc(S.evidence_claude)}</span><div class="evtext md">${renderMarkdown(t.assistant, res)}</div>` : "";
   const cut = t.truncated && (t.truncated.user || t.truncated.assistant) ? `<p class="evextra">${esc(S.evidence_truncated)}</p>` : "";
-  const files = (t.files || []).length ? `<div class="evextra">${esc(S.evidence_files)} ${t.files.map((f) => `<code>${esc(f)}</code>`).join("")}</div>` : "";
-  const cmds = (t.commands || []).length ? `<div class="evextra">${esc(S.evidence_commands)} ${t.commands.map((c) => `<code>${esc(c)}</code>`).join("")}</div>` : "";
+  const files = (t.files || []).length ? `<div class="evextra">${esc(S.evidence_files)} ${t.files.map((f) => fileLink(res(f) || f.replace(/^(~\/|\.\/)/, ""), `<code>${esc(f)}</code>`, !res(f))).join("")}</div>` : "";
+  const cmds = (t.commands || []).length ? `<div class="evextra">${esc(S.evidence_commands)} ${t.commands.map((c) => `<code>${plainHtml(c, res)}</code>`).join("")}</div>` : "";
   return `<article class="evturn ${t.cited ? "cited" : "dim"}" data-cited="${t.cited ? "1" : "0"}"><h3>${esc(fmt(S.evidence_message, { n: t.turn }))}${t.ts ? " · " + esc(evTime(t.ts)) : ""}${t.cited ? " · " + esc(S.evidence_cited) : ""}</h3>` +
     `<span class="evrole">${esc(S.evidence_you)}</span>${user}${reply}${files}${cmds}${cut}</article>`;
+}
+
+/** "Files Claude created" list of the session: created first, then edited. Pure (no DOM). */
+function evMadeHtml(made) {
+  if (!(made || []).length) return "";
+  const rows = made.map((f, i) => `<li class="evfile"><span class="evfilemain">${fileLink(f.short, esc(f.short), false)}<span class="evkind">${esc(f.kind === "created" ? S.evidence_made_created : S.evidence_made_edited)}</span></span>` +
+    `<span class="evpath muted" title="${esc(f.path)}">${esc(f.path)}</span>` +
+    `<span class="evfileact"><button class="cta ghost" type="button" data-act="reveal" data-i="${i}">${esc(S.evidence_made_open)}</button><button class="cta ghost" type="button" data-act="copypath" data-i="${i}">${esc(S.evidence_made_copy)}</button></span></li>`).join("");
+  return `<section class="evmade"><h3>${esc(S.evidence_made_title)}</h3><ul>${rows}</ul><p class="note evmadenote" id="ev-made-msg" role="status"></p></section>`;
+}
+
+async function evMadeAction(btn) {
+  const f = evMade[Number(btn.dataset.i)], msg = $("ev-made-msg");
+  if (!f || !msg) return;
+  const say = (t, bad) => { msg.textContent = t; msg.classList.toggle("err", !!bad); };
+  if (btn.dataset.act === "copypath") {
+    try { await navigator.clipboard.writeText(f.path); say(S.evidence_made_copied); } catch (e) { say(S.copy_failed, true); }
+    return;
+  }
+  try {
+    const r = await api("/api/reveal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: evSession, path: f.path }) });
+    if (r.ok) say(r.opened === f.path ? S.evidence_made_opened : S.evidence_made_opened_parent);
+    else say(r.error || S.evidence_made_failed, true);
+  } catch (err) { say(err.message || S.evidence_made_failed, true); }
 }
 
 function evPanelHtml(r) {
@@ -21,7 +46,7 @@ function evPanelHtml(r) {
     (r.warning ? `<p class="evwarn" role="alert">${esc(S.evidence_unverified)}</p>` : "") +
     `<dl class="evmeta">${meta}</dl>` +
     (s.resume ? `<div class="evresume"><code id="ev-resume">${esc(s.resume)}</code><button class="cta" id="ev-copy" type="button">${esc(S.evidence_copy_resume)}</button></div><p class="note" style="margin:0 0 6px">${esc(S.evidence_resume_hint)}</p>` : "") +
-    `<p class="note" style="margin:14px 0 0">${esc(S.evidence_context)}</p>` + r.turns.map(evTurnHtml).join("");
+    `<p class="note" style="margin:14px 0 0">${esc(S.evidence_context)}</p>` + r.turns.map(evTurnHtml).join("") + evMadeHtml(r.session.made);
 }
 
 function evCloseHandlers() {
@@ -49,6 +74,8 @@ async function openEvidence(btn) {
   try {
     const r = await api("/api/evidence?" + q);
     if (seq !== evSeq) return; // a newer click is already showing
+    evMade = r.session.made || [];
+    evSession = r.session.id;
     panel.innerHTML = evPanelHtml(r);
     evCloseHandlers();
     const cited = panel.querySelector('.evturn[data-cited="1"]');
@@ -70,7 +97,20 @@ function closeEvidence() {
   evOpener = null;
 }
 
+/** A file path inside a prompt: close the panel and show that file's tasks in the files section of the task. */
+function openPromptFile(btn) {
+  closeEvidence();
+  const box = $("filebox");
+  if (!box) return;
+  showFileTasks(btn.dataset.file, SESS.key);
+  box.scrollIntoView({ block: "center" });
+}
+
 document.addEventListener("click", (e) => {
+  const m = e.target.closest && e.target.closest("#ev-panel button[data-act]");
+  if (m) { evMadeAction(m); return; }
+  const f = e.target.closest && e.target.closest("#ev-panel button.filelink");
+  if (f) { openPromptFile(f); return; }
   const b = e.target.closest && e.target.closest("button.cite, button.msg");
   if (b) openEvidence(b);
 });

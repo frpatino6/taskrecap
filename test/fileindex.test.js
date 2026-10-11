@@ -136,3 +136,10 @@ test('sessionEdits and sessionLinks: first-mention attribution, edit counts and 
   assert.equal(mention.get('app/one.js').basis, 'mention');
   assert.equal(mention.get('app/one.js').last, ts(1));
 });
+
+test('filesOfTask: the files linked to one task', () => {
+  const fi = new FileIndex({ sessions: () => [], tasks: () => [], keyRegex: /x/ }, { all: () => [], stableSignature: () => 's', revision: 0 });
+  fi.get = () => ({ files: { 'r/a.js': [{ key: 'K-1' }], 'r/b.js': [{ key: 'K-2' }, { key: 'K-1' }] } });
+  assert.deepEqual(fi.filesOfTask('K-1'), ['r/a.js', 'r/b.js']);
+  assert.deepEqual(fi.filesOfTask('K-9'), []);
+});

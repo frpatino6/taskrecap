@@ -8,6 +8,7 @@ import { APP_NAME, APP_TITLE, DEFAULT_KEY_REGEX, VERSION } from './config.js';
 import { checkClaude, cachedClaude, publicStatus, refreshClaude } from './claude.js';
 import { UserError } from './errors.js';
 import { Aborted, estimateCost, extractJson, askLlm, isAbort } from './llm.js';
+import { revealFile, sessionFileList } from './reveal.js';
 import { readEvidence, parseSources, resolveSession, withRowTimes } from './evidence.js';
 import { FileIndex } from './files.js';
 import { STAGES, clip, log, makeMatchScanner, makeReporter, stage, throttle } from './progress.js';
@@ -223,7 +224,7 @@ export class App {
     const task = this.listTasks({ includeHidden: true }).find((t) => t.key === key) || null;
     if (!task && !sessions.length && !cap) return null;
     return {
-      task, sessions, capsule: this.withRowTimes(cap), markable: this.isMarkable(key),
+      task, sessions, capsule: this.withRowTimes(cap), files: this.fileIndex.filesOfTask(key), markable: this.isMarkable(key),
       stale: stale ? {
         known: stale.known, generated_at: stale.known ? cap.generated_at : null, new_messages: stale.new_messages, new_sessions: stale.new_sessions,
         changed: Boolean(drift && drift.changed), added: drift ? drift.added : 0, removed: drift ? drift.removed : 0,
@@ -348,6 +349,15 @@ export class App {
     const cap = key ? this.store.load(key) : null;
     const ranges = cap ? (parseSources(cap.sources)[String(session).toLowerCase()] || null) : null;
     return readEvidence(file, turn, { context, ranges });
+  }
+
+  /** Show a file Claude wrote in this session in the OS file manager. Only paths the session's own tool uses recorded. */
+  async revealSessionFile({ session, path: file }, opts = {}) {
+    const files = this.index.listFiles();
+    const sf = resolveSession(files, session);
+    const hit = sessionFileList(capsule.loadRichTurns(sf), Infinity).find((f) => f.path === file);
+    if (typeof file !== 'string' || !hit) throw new UserError('That file is not one Claude wrote in this session.');
+    return revealFile(hit.path, opts);
   }
 
   withTask(link, t) {

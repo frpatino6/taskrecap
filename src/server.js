@@ -166,7 +166,7 @@ export function makeHandler(app) {
 export const WEB_ASSETS = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.css': ['app.css', 'text/css; charset=utf-8'],
-  ...Object.fromEntries(['core', 'home', 'timeline', 'ai', 'files', 'units', 'organize', 'detail', 'evidence', 'main'].map((n) => [`/js/${n}.js`, [`js/${n}.js`, 'text/javascript; charset=utf-8']])),
+  ...Object.fromEntries(['core', 'home', 'timeline', 'ai', 'files', 'units', 'organize', 'detail', 'prompt', 'evidence', 'main'].map((n) => [`/js/${n}.js`, [`js/${n}.js`, 'text/javascript; charset=utf-8']])),
 };
 
 async function handleGet(app, url, route, res) {
@@ -211,6 +211,11 @@ async function handlePost(app, req, route, res) {
     if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
     await readJson(req);
     return send(res, 200, await app.recheckAi());
+  }
+  if (route === '/api/reveal') { // opens a local folder: JSON only, local only, and only files the session's own tool uses recorded
+    if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');
+    const body = await readJson(req);
+    return send(res, 200, await app.revealSessionFile({ session: body.session, path: body.path }));
   }
   if (route.startsWith('/api/units/')) { // the user's corrections: JSON only, local only, every one can be undone
     if (!(req.headers['content-type'] || '').includes('application/json')) return sendError(res, 415, 'JSON required');

@@ -20,7 +20,9 @@ function whenCell(row) {
 function capsuleHtml(res) {
   CAP_KEY = res.key || "";
   const c = res.capsule || {};
-  const files = res.files || [], fin = files.filter((f) => f.status === "final"), rev = files.filter((f) => f.status === "reverted");
+  const files = res.files || [];
+  PROMPT_FILES = [...new Set([...PROMPT_FILES, ...files.map((f) => f.short)])]; // the prompts' file paths link to these
+  const fin = files.filter((f) => f.status === "final"), rev = files.filter((f) => f.status === "reverted");
   const cm = res.commits || { confirmed: [], possible: [] };
   const tl = (c.timeline || []).length ? `<div class="tablewrap"><table class="tl2"><thead><tr><th>${esc(S.date_time)}</th><th>${esc(S.repo)}</th><th>${esc(S.result)}</th><th>${esc(S.evidence)}</th></tr></thead><tbody>` +
     c.timeline.map((t) => `<tr><td>${whenCell(t)}</td><td>${esc(t.repo)}</td><td>${esc(t.result)}</td><td>${cites(t.cites)}</td></tr>`).join("") + `</tbody></table></div>` : `<p>${esc(S.none)}</p>`;
@@ -86,6 +88,7 @@ async function renderDetail(key, { animate = false } = {}) {
     $("detail-retry").addEventListener("click", () => renderDetail(key, { animate }));
     return;
   }
+  PROMPT_FILES = d.files || []; // the task's files (capsule, or edits in its sessions): the prompts' paths link to these
   const cap = d.capsule, t = d.task || { key, kind: "key", generatable: true, projects: [], snippet: "" };
   const objective = cap ? (cap.capsule || {}).objective : (d.sessions[0] || {}).snippet;
   el.innerHTML = `<button class="back" id="back" type="button">${esc(S.back)}</button>

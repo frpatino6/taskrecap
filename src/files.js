@@ -154,6 +154,11 @@ export class FileIndex {
     }
   }
 
+  /** Every file (`<repo>/<path>`) linked to one task, from its capsule or, without one, from its sessions. */
+  filesOfTask(key) {
+    return Object.entries(this.get().files).filter(([, l]) => l.some((x) => x.key === key)).map(([short]) => short).sort();
+  }
+
   /** Tasks that touched exactly this file (`<repo>/<path>`): capsule links first, then approximate ones, newest first. */
   tasksOf(short) {
     const list = [...(this.get().files[short] || [])];

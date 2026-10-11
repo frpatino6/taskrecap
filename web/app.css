@@ -138,6 +138,17 @@ body.evopen { overflow: hidden; }
 .evturn.cited h3 { color: var(--accent); }
 .evrole { display: block; font-weight: 700; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); margin: 8px 0 2px; }
 .evtext { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; margin: 0; }
+.evtext.md { white-space: normal; }
+.evtext.md > :first-child { margin-top: 0; } .evtext.md > :last-child { margin-bottom: 0; }
+.evtext.md p, .evtext.md ul, .evtext.md ol, .evtext.md blockquote, .evtext.md pre, .evtext.md .tablewrap { margin: 0 0 .6em; }
+.evtext.md ul, .evtext.md ol { padding-left: 1.4em; }
+.evtext.md .mdh { margin: .8em 0 .3em; font-size: 15px; }
+.evtext.md code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); border-radius: 4px; padding: 1px 4px; }
+.evtext.md pre { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; overflow-x: auto; white-space: pre; }
+.evtext.md pre code { background: none; padding: 0; }
+.evtext.md blockquote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); }
+.evtext.md table { border-collapse: collapse; font-size: 13.5px; } .evtext.md th, .evtext.md td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; }
+.evtext.md a { color: var(--accent); }
 .evtext.muted { color: var(--muted); font-style: italic; }
 .evextra { margin-top: 8px; font-size: 13px; color: var(--muted); }
 .evextra code { display: inline-block; margin: 2px 4px 2px 0; }
@@ -243,6 +254,7 @@ mark { background: var(--warn-soft); color: inherit; border-radius: 3px; padding
 .nonehint { max-width: 640px; }
 button.filelink { font: .86em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); color: var(--accent); border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; min-height: 24px; text-align: left; word-break: break-word; }
 button.filelink:hover { border-color: var(--accent); }
+button.filelink.unknown { background: none; text-decoration: underline dotted; }
 .filebox { margin-top: 12px; }
 .filepanel h3 { margin: 0 0 8px; font-size: 15px; overflow-wrap: anywhere; }
 .filetasks { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
@@ -431,3 +443,11 @@ button.tasklink.inline { width: auto; padding: 2px 10px; border-radius: 999px; f
 .udpanel.orgpanel { width: min(720px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
 .orgpanel .panel { margin: 12px 0; }
 @media (max-width: 560px) { .orgprop { padding: 12px; } .orghead { align-items: flex-start; } }
+.evmade { margin: 18px 0 8px; }
+.evmade h3 { font-size: 15px; margin: 0 0 6px; }
+.evmade ul { list-style: none; margin: 0; padding: 0; }
+.evfile { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border, rgba(128,128,128,.25)); }
+.evfilemain { display: inline-flex; gap: 8px; align-items: center; }
+.evkind { font-size: 12px; color: var(--muted); }
+.evpath { flex-basis: 100%; font-size: 12px; overflow-wrap: anywhere; }
+.evfileact { display: flex; gap: 6px; }
