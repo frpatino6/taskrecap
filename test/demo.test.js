@@ -180,3 +180,19 @@ test('the demo has a ready capsule for a session without a task key and for a gr
   assert.deepEqual(app.fileTasks('acme-docs/src/components/SearchBox.js').tasks.map((l) => [l.key, l.approximate]), [[group.key, false]]);
   assert.ok(app.search('highlighted').some((h) => h.key === group.key && h.where === 'capsule'));
 });
+
+test('demo mode answers reveal with ok and never spawns anything; the cited SHOP-101 turn shows markdown, paths and created files', () => {
+  const cacheDir = tmpDir();
+  const app = new App({ projectsDir: SESSIONS, cacheDir, demo: true });
+  const ev = app.evidence({ session: 'a1b2c3d4', turn: 0, context: 0 });
+  const created = ev.session.made.filter((f) => f.kind === 'created').map((f) => f.short);
+  assert.ok(created.length >= 2, 'the panel lists files Claude created');
+  const file = ev.session.made[0].path;
+  let spawned = 0;
+  return app.revealSessionFile({ session: 'a1b2c3d4', path: file }, { spawn: async () => { spawned++; }, exists: () => true })
+    .then((r) => {
+      assert.deepEqual(r, { ok: true, opened: file });
+      assert.equal(spawned, 0);
+      assert.ok(/^## /m.test(ev.turns.find((t) => t.cited).user || ev.turns.find((t) => t.cited).text || ''), 'markdown in the cited prompt');
+    });
+});

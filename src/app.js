@@ -357,6 +357,7 @@ export class App {
     const sf = resolveSession(files, session);
     const hit = sessionFileList(capsule.loadRichTurns(sf), Infinity).find((f) => f.path === file);
     if (typeof file !== 'string' || !hit) throw new UserError('That file is not one Claude wrote in this session.');
+    if (this.demo) return { ok: true, opened: hit.path }; // the sample files do not exist: never open anything from the demo
     return revealFile(hit.path, opts);
   }
 
