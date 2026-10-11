@@ -10,7 +10,7 @@ test('escapeInline neutralises closing tags of the given element only', () => {
 test('jsonForScript never emits a literal "<" and round-trips', () => {
   const v = { a: '</script><!--', b: 'xy' };
   const s = jsonForScript(v);
-  assert.ok(!s.includes('<') && !s.includes(''));
+  assert.ok(!s.includes('<') && !s.includes('\u2028') && !s.includes('\u2029'));
   assert.deepEqual(JSON.parse(s), v);
 });
 
