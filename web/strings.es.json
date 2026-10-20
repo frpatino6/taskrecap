@@ -422,6 +422,8 @@
   "org_open_session": "Abrir",
   "org_accepted_msg": "Propuesta aceptada.",
   "org_accepted_all_msg": "{n} propuesta(s) aceptadas.",
+  "org_skipped_renamed": "Ya le pusiste nombre: se mantuvo el tuyo.",
+  "org_skipped_renamed_all": "{n} título(s) omitidos: ya les pusiste nombre.",
   "org_rejected_msg": "Propuesta rechazada. No se volverá a mostrar.",
   "org_ai_chip": "Organizado con IA",
   "org_ai_tip": "Nombrado, agrupado o dividido por la IA después de que lo aceptaste. Deshacer lo revierte, y aún puedes renombrarlo, unirlo o moverlo.",

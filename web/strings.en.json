@@ -422,6 +422,8 @@
   "org_open_session": "Open",
   "org_accepted_msg": "Proposal accepted.",
   "org_accepted_all_msg": "{n} proposal(s) accepted.",
+  "org_skipped_renamed": "You already named this one: your name was kept.",
+  "org_skipped_renamed_all": "{n} title(s) skipped: you already named them.",
   "org_rejected_msg": "Proposal rejected. It will not be shown again.",
   "org_ai_chip": "AI-organized",
   "org_ai_tip": "Named, grouped or split by AI after you accepted it. Undo reverts it, and you can still rename, merge or move it.",

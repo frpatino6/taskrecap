@@ -463,6 +463,7 @@ export class Organizer {
     if (p.type === 'title') {
       if (title.length < 1) throw new UserError('Type a name first.');
       const unit = this.unitKey(p.sessions[0], units);
+      if (this.userNamed(unit, units)) return []; // the user named it since the proposal was made: their name wins
       return [{ type: 'rename', unit, label: title, source: 'ai', proposal: p.id }];
     }
     if (p.type === 'group') {
@@ -476,12 +477,24 @@ export class Organizer {
     throw new UserError('Unknown proposal.');
   }
 
+  /** Did the user (not the AI) name this unit? */
+  userNamed(key, units = this.index.unitMap().units) {
+    const u = units.get(key);
+    return Boolean(u && u.renamed && !u.ai);
+  }
+
+  /** -> the batch of the change, or {skipped: 'renamed'} when the user named the unit since: nothing is changed and the proposal is closed. */
   accept(id, edits = {}) {
     const p = this.store.get(String(id || ''));
     if (!p || this.statusOf(p) === 'rejected' || this.statusOf(p) === 'accepted') throw new UserError('That proposal is not available (any more).');
     const units = this.index.unitMap().units;
     if (!this.applies(p, units)) throw new UserError('That proposal no longer applies: its sessions changed. Run "Organize with AI" again.');
-    const batch = this.overrides.add(this.opsFor(p, edits, units));
+    const ops = this.opsFor(p, edits, units);
+    if (!ops.length) {
+      this.store.setStatus(p.id, 'rejected');
+      return { skipped: 'renamed' };
+    }
+    const batch = this.overrides.add(ops);
     this.store.setStatus(p.id, 'accepted', { batch });
     return batch;
   }
@@ -492,10 +505,14 @@ export class Organizer {
     const units = this.index.unitMap().units;
     const chosen = this.pending().filter((p) => CONFIDENCE.indexOf(p.confidence) <= floor);
     if (!chosen.length) throw new UserError('There is nothing to accept at that confidence.');
-    const ops = chosen.flatMap((p) => this.opsFor(p, {}, units));
+    const todo = chosen.map((p) => ({ p, ops: this.opsFor(p, {}, units) }));
+    const ops = todo.flatMap((x) => x.ops);
+    const skipped = todo.filter((x) => !x.ops.length).map((x) => x.p);
+    for (const p of skipped) this.store.setStatus(p.id, 'rejected'); // the user named these units since: their name wins
+    if (!ops.length) return { batch: null, accepted: 0, skipped: skipped.length };
     const batch = this.overrides.add(ops);
-    for (const p of chosen) this.store.setStatus(p.id, 'accepted', { batch });
-    return { batch, accepted: chosen.length };
+    for (const x of todo) if (x.ops.length) this.store.setStatus(x.p.id, 'accepted', { batch });
+    return { batch, accepted: todo.length - skipped.length, skipped: skipped.length };
   }
 
   reject(id) {

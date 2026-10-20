@@ -16,3 +16,8 @@ tools/screenshots/node_modules/
 .claude/
 .codegraph/
 skills-lock.json
+
+# e2e project (Playwright Test): its own node_modules, reports and traces never ship
+test/e2e/node_modules/
+test/e2e/.output/
+test/e2e/playwright-report/

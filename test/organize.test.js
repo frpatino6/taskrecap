@@ -276,6 +276,32 @@ test('the user can edit the title when accepting, and a name the user chose is n
   assert.equal(app.listTasks().find((t) => t.key === 'session:S3CCCCCC').label, 'My own name');
 });
 
+test('accepting a title proposal made before the user renamed the unit keeps the user name and closes the proposal', async () => {
+  const fx = fixture();
+  const app = makeApp(fx, fakeOrganizer([]));
+  await app.organize({});
+  const p = app.organizeProposals().proposals.find((x) => x.type === 'title' && x.sessions[0].short === 'S3CCCCCC');
+  app.renameUnit('session:S3CCCCCC', 'My own name');
+  const res = app.acceptProposal(p.id);
+  assert.equal(res.skipped, 'renamed');
+  assert.equal(res.undo, null);
+  assert.equal(app.listTasks().find((t) => t.key === 'session:S3CCCCCC').label, 'My own name');
+  assert.equal(app.overrides.ops().some((o) => o.proposal === p.id), false, 'no operation was written');
+  assert.equal(app.organizeProposals().proposals.some((x) => x.id === p.id), false, 'no longer pending');
+});
+
+test('"accept all" skips the titles of units the user renamed since and still applies the rest', async () => {
+  const fx = fixture();
+  const app = makeApp(fx, fakeOrganizer([]));
+  await app.organize({});
+  app.renameUnit('session:S3CCCCCC', 'My own name');
+  const res = app.acceptProposals('medium');
+  assert.equal(res.skipped, 1);
+  assert.ok(res.accepted >= 1, 'the group and the other proposals still apply');
+  assert.equal(app.listTasks().find((t) => t.key === 'session:S3CCCCCC').label, 'My own name');
+  assert.equal(app.overrides.ops().some((o) => o.source === 'ai' && o.type === 'rename' && o.unit === 'session:S3CCCCCC'), false);
+});
+
 test('rejecting is remembered: the proposal does not come back after another run or a restart', async () => {
   const fx = fixture();
   const app = makeApp(fx, fakeOrganizer([]));
